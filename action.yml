@@ -8,7 +8,7 @@ branding:
 # Requirements (the step checks these and lists everything that is missing in one pass):
 #   - PowerShell 7 (pwsh) on the runner. GitHub-hosted runners have it.
 #   - actions/checkout before this step when configuration-path is used.
-#   - git when configuration-repository-url is used.
+#   - git when configuration-repository-url or module-source: Repository is used.
 #   - The dsc command-line engine on PATH when engine is DscV3.
 # Full list: docs/requirements.md. Every input: docs/settings.md.
 
@@ -77,6 +77,18 @@ inputs:
     description: 'Registered PowerShell repository to install modules from. Use this for an internal feed; the repository must already be registered on the agent.'
     required: false
     default: 'PSGallery'
+  module-source:
+    description: 'Where Dsc.PipelineRunner comes from. Gallery installs a published release (module-version, module-repository). Repository clones the module''s source repository at module-source-ref, builds it on the agent and runs that build; use it to run an unreleased commit, a branch or a fork. Requires git.'
+    required: false
+    default: 'Gallery'
+  module-source-repository:
+    description: 'Git URL of the Dsc.PipelineRunner source repository, used when module-source is Repository. Point it at a fork or an internal mirror if you need to. Its build script runs on the agent, so use only a repository you trust.'
+    required: false
+    default: 'https://github.com/ZanattaMichael/Dsc.PipelineRunner'
+  module-source-ref:
+    description: 'Tag, branch or commit of the source repository to build. Required when module-source is Repository. A full 40-character commit SHA is verified after the clone and is the recommended value.'
+    required: false
+    default: ''
   resource-modules:
     description: 'DSC resource modules the configuration uses, one per line or comma-separated, as Name or Name@Version (for example PSDscResources@2.12.0.0). Pinning versions is recommended.'
     required: false
@@ -143,6 +155,9 @@ runs:
         DSCPR_MODULE_VERSION: ${{ inputs.module-version }}
         DSCPR_ALLOW_PRERELEASE: ${{ inputs.allow-prerelease }}
         DSCPR_MODULE_REPOSITORY: ${{ inputs.module-repository }}
+        DSCPR_MODULE_SOURCE: ${{ inputs.module-source }}
+        DSCPR_MODULE_SOURCE_REPOSITORY: ${{ inputs.module-source-repository }}
+        DSCPR_MODULE_SOURCE_REF: ${{ inputs.module-source-ref }}
         DSCPR_RESOURCE_MODULES: ${{ inputs.resource-modules }}
         DSCPR_SKIP_MODULE_INSTALL: ${{ inputs.skip-module-install }}
         DSCPR_KEEP_TEMPORARY_DIRECTORY: ${{ inputs.keep-temporary-directory }}

@@ -96,6 +96,19 @@ commands:
         description: 'Registered PowerShell repository to install modules from. Use this for an internal feed; the repository must already be registered on the agent.'
         type: string
         default: 'PSGallery'
+      module-source:
+        description: 'Where Dsc.PipelineRunner comes from. Gallery installs a published release (module-version, module-repository). Repository clones the module''s source repository at module-source-ref, builds it on the agent and runs that build; use it to run an unreleased commit, a branch or a fork. Requires git.'
+        type: enum
+        enum: ['Gallery', 'Repository']
+        default: 'Gallery'
+      module-source-repository:
+        description: 'Git URL of the Dsc.PipelineRunner source repository, used when module-source is Repository. Point it at a fork or an internal mirror if you need to. Its build script runs on the agent, so use only a repository you trust.'
+        type: string
+        default: 'https://github.com/ZanattaMichael/Dsc.PipelineRunner'
+      module-source-ref:
+        description: 'Tag, branch or commit of the source repository to build. Required when module-source is Repository. A full 40-character commit SHA is verified after the clone and is the recommended value.'
+        type: string
+        default: ''
       resource-modules:
         description: 'DSC resource modules the configuration uses, one per line or comma-separated, as Name or Name@Version (for example PSDscResources@2.12.0.0). Pinning versions is recommended.'
         type: string
@@ -143,6 +156,9 @@ commands:
             DSCPR_MODULE_VERSION: "<< parameters.module-version >>"
             DSCPR_ALLOW_PRERELEASE: "<< parameters.allow-prerelease >>"
             DSCPR_MODULE_REPOSITORY: "<< parameters.module-repository >>"
+            DSCPR_MODULE_SOURCE: "<< parameters.module-source >>"
+            DSCPR_MODULE_SOURCE_REPOSITORY: "<< parameters.module-source-repository >>"
+            DSCPR_MODULE_SOURCE_REF: "<< parameters.module-source-ref >>"
             DSCPR_RESOURCE_MODULES: "<< parameters.resource-modules >>"
             DSCPR_SKIP_MODULE_INSTALL: "<< parameters.skip-module-install >>"
             DSCPR_KEEP_TEMPORARY_DIRECTORY: "<< parameters.keep-temporary-directory >>"
@@ -229,6 +245,19 @@ jobs:
         description: 'Registered PowerShell repository to install modules from. Use this for an internal feed; the repository must already be registered on the agent.'
         type: string
         default: 'PSGallery'
+      module-source:
+        description: 'Where Dsc.PipelineRunner comes from. Gallery installs a published release (module-version, module-repository). Repository clones the module''s source repository at module-source-ref, builds it on the agent and runs that build; use it to run an unreleased commit, a branch or a fork. Requires git.'
+        type: enum
+        enum: ['Gallery', 'Repository']
+        default: 'Gallery'
+      module-source-repository:
+        description: 'Git URL of the Dsc.PipelineRunner source repository, used when module-source is Repository. Point it at a fork or an internal mirror if you need to. Its build script runs on the agent, so use only a repository you trust.'
+        type: string
+        default: 'https://github.com/ZanattaMichael/Dsc.PipelineRunner'
+      module-source-ref:
+        description: 'Tag, branch or commit of the source repository to build. Required when module-source is Repository. A full 40-character commit SHA is verified after the clone and is the recommended value.'
+        type: string
+        default: ''
       resource-modules:
         description: 'DSC resource modules the configuration uses, one per line or comma-separated, as Name or Name@Version (for example PSDscResources@2.12.0.0). Pinning versions is recommended.'
         type: string
@@ -269,6 +298,9 @@ jobs:
           module-version: << parameters.module-version >>
           allow-prerelease: << parameters.allow-prerelease >>
           module-repository: << parameters.module-repository >>
+          module-source: << parameters.module-source >>
+          module-source-repository: << parameters.module-source-repository >>
+          module-source-ref: << parameters.module-source-ref >>
           resource-modules: << parameters.resource-modules >>
           skip-module-install: << parameters.skip-module-install >>
           keep-temporary-directory: << parameters.keep-temporary-directory >>

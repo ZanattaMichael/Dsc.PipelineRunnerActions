@@ -219,6 +219,39 @@
       "helpMarkDown": "Registered PowerShell repository to install modules from. Use this for an internal feed; the repository must already be registered on the agent."
     },
     {
+      "name": "moduleSource",
+      "type": "pickList",
+      "label": "Module source",
+      "defaultValue": "Gallery",
+      "required": false,
+      "groupName": "installation",
+      "helpMarkDown": "Where Dsc.PipelineRunner comes from. Gallery installs a published release (module-version, module-repository). Repository clones the module's source repository at module-source-ref, builds it on the agent and runs that build; use it to run an unreleased commit, a branch or a fork. Requires git.",
+      "options": {
+        "Gallery": "Gallery",
+        "Repository": "Repository"
+      }
+    },
+    {
+      "name": "moduleSourceRepository",
+      "type": "string",
+      "label": "Module source repository",
+      "defaultValue": "https://github.com/ZanattaMichael/Dsc.PipelineRunner",
+      "required": false,
+      "groupName": "installation",
+      "helpMarkDown": "Git URL of the Dsc.PipelineRunner source repository, used when module-source is Repository. Point it at a fork or an internal mirror if you need to. Its build script runs on the agent, so use only a repository you trust.",
+      "visibleRule": "moduleSource = Repository"
+    },
+    {
+      "name": "moduleSourceRef",
+      "type": "string",
+      "label": "Module source ref",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "installation",
+      "helpMarkDown": "Tag, branch or commit of the source repository to build. Required when module-source is Repository. A full 40-character commit SHA is verified after the clone and is the recommended value.",
+      "visibleRule": "moduleSource = Repository"
+    },
+    {
       "name": "resourceModules",
       "type": "multiLine",
       "label": "Resource modules",

@@ -41,6 +41,7 @@ one pass, so you do not fix one problem only to meet the next.
 | PowerShell 7 (`pwsh`) on the agent | Always |
 | Outbound HTTPS to the PowerShell Gallery (or an internal feed) | Unless `skip-module-install` is `true` |
 | The configuration checked out, or `git` to clone it | Always (one or the other) |
+| `git` | `module-source: Repository` |
 | A Windows agent | DscV2 engine with Windows-only resources (most of them) |
 | The `dsc` command-line engine on `PATH` | DscV3 engine |
 | A token for the configuration repository | Private repository cloned by URL |
@@ -51,7 +52,7 @@ Details, including how to install each item: [docs/requirements.md](docs/require
 
 ## Settings
 
-There are 20 settings in five groups. The most used:
+There are 23 settings in five groups. The most used:
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
@@ -62,6 +63,7 @@ There are 20 settings in five groups. The most used:
 | `fail-on-error` | `true` | Fail the step when the run failed. In `Test` mode drift is a failure. |
 | `report-path` | `dsc-reports` | Where the reports are written. |
 | `module-version` | (empty) | Exact Dsc.PipelineRunner version. Pin it. |
+| `module-source`, `module-source-ref` | `Gallery` | Or: build and run the module from its [source repository](https://github.com/ZanattaMichael/Dsc.PipelineRunner) at a tag, branch or commit. |
 | `resource-modules` | (empty) | DSC resource modules to install, as `Name@Version`. |
 
 The full reference, with the name of each setting on each platform and the outputs:

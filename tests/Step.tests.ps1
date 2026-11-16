@@ -91,6 +91,33 @@ Describe 'Invoke-DscPipelineRunnerStep' {
             $Result.Status | Should -Be 'PreflightPassed'
         }
 
+        It 'Requires a ref to build the module from its source repository' {
+            Invoke-Step -Setting @{ 'configuration-path' = $Config; 'module-source' = 'Repository'; 'skip-module-install' = 'false' }
+            $Result.Status | Should -Be 'InvalidSettings'
+            $Text | Should -Match "'module-source-ref' is empty"
+            $Call | Should -BeNullOrEmpty
+        }
+
+        It 'Rejects a source ref that could be read as an option, and a source URL with a credential' {
+            Invoke-Step -Setting @{ 'configuration-path' = $Config; 'module-source' = 'Repository'; 'skip-module-install' = 'false'; 'module-source-ref' = '--upload-pack=x'; 'module-source-repository' = 'https://user:hunter2@example.test/m.git' }
+            $Text | Should -Match "'module-source-ref' is not a valid"
+            $Text | Should -Match "'module-source-repository' contains a password or token"
+            $Text | Should -Not -Match 'hunter2'
+        }
+
+        It 'Cannot build from source with skip-module-install' {
+            Invoke-Step -Setting @{ 'configuration-path' = $Config; 'module-source' = 'Repository'; 'module-source-ref' = 'main' }
+            $Text | Should -Match "'module-source' is Repository and 'skip-module-install' is true"
+        }
+
+        It 'Warns that source code runs on the agent and that a branch is not pinned' {
+            Invoke-Step -Setting @{ 'configuration-path' = $Config; 'module-source' = 'Repository'; 'skip-module-install' = 'false'; 'module-source-ref' = 'main'; 'module-version' = '1.2.1' } -PreflightOnly
+            $Result.Status | Should -Be 'PreflightPassed'
+            $Text | Should -Match 'is not a full commit SHA'
+            $Text | Should -Match 'build script of https://github.com/ZanattaMichael/Dsc.PipelineRunner runs on this agent'
+            $Text | Should -Match "'module-version' is ignored"
+        }
+
         It 'Accepts fixed values in any letter case' {
             Invoke-Step -Setting @{ 'configuration-path' = $Config; mode = 'dryrun'; 'fail-on-error' = 'TRUE' } -PreflightOnly
             $Result.Status | Should -Be 'PreflightPassed'

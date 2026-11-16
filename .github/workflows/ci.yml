@@ -107,6 +107,35 @@ jobs:
           if ($env:STATUS -notin 'Completed', 'Failed') { throw "status output is '$env:STATUS'" }
           if ([int]$env:TOTAL -lt 1) { throw 'no resource was evaluated' }
 
+  module-from-source:
+    # Builds Dsc.PipelineRunner from its source repository at a pinned commit and runs that build.
+    # This is also the job that exercises DryRun, which no published release has yet.
+    name: Module from source (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - id: dsc
+        uses: ./
+        with:
+          configuration-path: tests/fixtures/real-config
+          mode: DryRun
+          module-source: Repository
+          module-source-ref: fe1560dfeca6f2692a2acdebb7eb4ea14e9ba484
+      - shell: pwsh
+        env:
+          STATUS: ${{ steps.dsc.outputs.status }}
+          TOTAL: ${{ steps.dsc.outputs.total-resources }}
+          VERSION: ${{ steps.dsc.outputs.module-version }}
+        run: |
+          "status=$env:STATUS total=$env:TOTAL version=$env:VERSION"
+          if (-not $env:VERSION) { throw 'module-version output is empty' }
+          if ($env:STATUS -ne 'Completed') { throw "status output is '$env:STATUS'" }
+          if ([int]$env:TOTAL -lt 1) { throw 'no resource was evaluated' }
+
   azure-devops-task:
     name: Azure DevOps task and extension
     runs-on: ubuntu-latest

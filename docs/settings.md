@@ -26,6 +26,9 @@ setting at the start of each run (secrets are shown only as set or not set).
 | module-version | `module-version` | `moduleVersion` | `module_version` | `DSCPR_MODULE_VERSION` |
 | allow-prerelease | `allow-prerelease` | `allowPrerelease` | `allow_prerelease` | `DSCPR_ALLOW_PRERELEASE` |
 | module-repository | `module-repository` | `moduleRepository` | `module_repository` | `DSCPR_MODULE_REPOSITORY` |
+| module-source | `module-source` | `moduleSource` | `module_source` | `DSCPR_MODULE_SOURCE` |
+| module-source-repository | `module-source-repository` | `moduleSourceRepository` | `module_source_repository` | `DSCPR_MODULE_SOURCE_REPOSITORY` |
+| module-source-ref | `module-source-ref` | `moduleSourceRef` | `module_source_ref` | `DSCPR_MODULE_SOURCE_REF` |
 | resource-modules | `resource-modules` | `resourceModules` | `resource_modules` | `DSCPR_RESOURCE_MODULES` |
 | skip-module-install | `skip-module-install` | `skipModuleInstall` | `skip_module_install` | `DSCPR_SKIP_MODULE_INSTALL` |
 | keep-temporary-directory | `keep-temporary-directory` | `keepTemporaryDirectory` | `keep_temporary_directory` | `DSCPR_KEEP_TEMPORARY_DIRECTORY` |
@@ -70,6 +73,9 @@ variable in CircleCI, and a credentials ID in Jenkins.
 | `module-version` | (empty) | any | Exact Dsc.PipelineRunner version to install, for example 1.2.1. Pinning is recommended. Empty uses a version already on the agent, otherwise installs the newest stable release. |
 | `allow-prerelease` | `false` | `true`, `false` | Allow a preview version of Dsc.PipelineRunner (needed when module-version names one, for example 1.3.0-preview1). |
 | `module-repository` | `PSGallery` | any | Registered PowerShell repository to install modules from. Use this for an internal feed; the repository must already be registered on the agent. |
+| `module-source` | `Gallery` | `Gallery`, `Repository` | Where Dsc.PipelineRunner comes from. Gallery installs a published release (module-version, module-repository). Repository clones the module's source repository at module-source-ref, builds it on the agent and runs that build; use it to run an unreleased commit, a branch or a fork. Requires git. |
+| `module-source-repository` | `https://github.com/ZanattaMichael/Dsc.PipelineRunner` | any | Git URL of the Dsc.PipelineRunner source repository, used when module-source is Repository. Point it at a fork or an internal mirror if you need to. Its build script runs on the agent, so use only a repository you trust. |
+| `module-source-ref` | (empty) | any | Tag, branch or commit of the source repository to build. Required when module-source is Repository. A full 40-character commit SHA is verified after the clone and is the recommended value. |
 | `resource-modules` | (empty) | any | DSC resource modules the configuration uses, one per line or comma-separated, as Name or Name@Version (for example PSDscResources@2.12.0.0). Pinning versions is recommended. |
 | `skip-module-install` | `false` | `true`, `false` | Install nothing. Use on agents or container images where Dsc.PipelineRunner and the resource modules are already present, or where the agent has no access to a module repository. |
 

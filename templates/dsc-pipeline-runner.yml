@@ -86,6 +86,16 @@ spec:
     module_repository:
       description: 'Registered PowerShell repository to install modules from. Use this for an internal feed; the repository must already be registered on the agent.'
       default: 'PSGallery'
+    module_source:
+      description: 'Where Dsc.PipelineRunner comes from. Gallery installs a published release (module-version, module-repository). Repository clones the module''s source repository at module-source-ref, builds it on the agent and runs that build; use it to run an unreleased commit, a branch or a fork. Requires git.'
+      default: 'Gallery'
+      options: ['Gallery', 'Repository']
+    module_source_repository:
+      description: 'Git URL of the Dsc.PipelineRunner source repository, used when module-source is Repository. Point it at a fork or an internal mirror if you need to. Its build script runs on the agent, so use only a repository you trust.'
+      default: 'https://github.com/ZanattaMichael/Dsc.PipelineRunner'
+    module_source_ref:
+      description: 'Tag, branch or commit of the source repository to build. Required when module-source is Repository. A full 40-character commit SHA is verified after the clone and is the recommended value.'
+      default: ''
     resource_modules:
       description: 'DSC resource modules the configuration uses, one per line or comma-separated, as Name or Name@Version (for example PSDscResources@2.12.0.0). Pinning versions is recommended.'
       default: ''
@@ -126,6 +136,9 @@ spec:
     DSCPR_MODULE_VERSION: '$[[ inputs.module_version ]]'
     DSCPR_ALLOW_PRERELEASE: '$[[ inputs.allow_prerelease ]]'
     DSCPR_MODULE_REPOSITORY: '$[[ inputs.module_repository ]]'
+    DSCPR_MODULE_SOURCE: '$[[ inputs.module_source ]]'
+    DSCPR_MODULE_SOURCE_REPOSITORY: '$[[ inputs.module_source_repository ]]'
+    DSCPR_MODULE_SOURCE_REF: '$[[ inputs.module_source_ref ]]'
     DSCPR_RESOURCE_MODULES: '$[[ inputs.resource_modules ]]'
     DSCPR_SKIP_MODULE_INSTALL: '$[[ inputs.skip_module_install ]]'
     DSCPR_KEEP_TEMPORARY_DIRECTORY: '$[[ inputs.keep_temporary_directory ]]'
