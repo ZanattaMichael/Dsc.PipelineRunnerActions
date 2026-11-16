@@ -430,13 +430,26 @@ function Install-StepModuleFromSource {
     $buildScript = Get-ChildItem -LiteralPath $work -File | Where-Object { $_.Name -ieq 'build.ps1' } | Select-Object -First 1
     if (-not $buildScript) { throw "The module source repository has no build.ps1 at '$Ref'; it does not look like Dsc.PipelineRunner." }
 
+    # Commits up to and including the 1.2 line have build tasks that look for 'Output' while the
+    # build writes 'output'. That only works on a case-insensitive file system, so on Linux and
+    # macOS give those commits an 'Output' that is the same directory.
+    if (-not $IsWindows) {
+        $null = New-Item -ItemType Directory -Path (Join-Path $work 'output') -Force
+        if (-not (Test-Path -LiteralPath (Join-Path $work 'Output'))) {
+            $null = New-Item -ItemType SymbolicLink -Path (Join-Path $work 'Output') -Target (Join-Path $work 'output')
+        }
+    }
+
     # A separate process: the build loads its own tool modules, which must not leak into the run.
     & $pwsh -NoLogo -NoProfile -NonInteractive -File $buildScript.FullName -ResolveDependency -Tasks build 2>&1 | ForEach-Object { Write-Host "    $_" }
     if ($LASTEXITCODE -ne 0) { throw "Building the module from source failed (exit code $LASTEXITCODE). See the build output above." }
 
+    # The built module is output/Dsc.PipelineRunner/<version>/ (or under output/builtModule/ when
+    # the build is configured that way). output/RequiredModules holds build tools, not the result.
     $manifest = Get-ChildItem -Path (Join-Path $work 'output') -Recurse -Filter 'Dsc.PipelineRunner.psd1' -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -match '[\\/]builtModule[\\/]' } | Select-Object -First 1
-    if (-not $manifest) { throw 'The build finished but produced no Dsc.PipelineRunner module under output/builtModule.' }
+        Where-Object { $_.FullName -notmatch '[\\/]RequiredModules[\\/]' -and $_.Directory.Parent.Name -eq 'Dsc.PipelineRunner' } |
+        Sort-Object -Property FullName | Select-Object -First 1
+    if (-not $manifest) { throw 'The build finished but produced no Dsc.PipelineRunner module under its output directory.' }
 
     # Run-time dependencies. Newer commits carry a pinned installer; use it when it is there.
     $pinnedInstaller = Join-Path $work 'scripts/Install-PinnedModule.ps1'

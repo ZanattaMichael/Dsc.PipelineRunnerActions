@@ -50,7 +50,7 @@ module-source-ref: fe1560dfeca6f2692a2acdebb7eb4ea14e9ba484   # tag, branch or (
 What happens: the repository is cloned to a temporary directory and checked out at
 `module-source-ref` (a full commit SHA is verified), `build.ps1 -ResolveDependency -Tasks build`
 runs in a separate process, the run-time dependencies are installed (with the repository's own
-pinned installer when the commit has one), and the built module is imported by path. `module-version`
+pinned installer when the commit has one), and the built module (`output/Dsc.PipelineRunner/<version>/`) is imported by path. `module-version`
 is ignored; the `module-version` output reports the version that was built.
 
 For a private fork, give the agent access with a credential helper or an SSH key; a URL that
