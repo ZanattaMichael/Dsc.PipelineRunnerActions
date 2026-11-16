@@ -1,4 +1,4 @@
-# GitHub Actions
+# <img src="../assets/logo-github-actions.svg" alt="" width="48" align="top"> GitHub Actions
 
 ## Requirements
 

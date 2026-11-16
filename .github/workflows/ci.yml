@@ -107,6 +107,50 @@ jobs:
           if ($env:STATUS -notin 'Completed', 'Failed') { throw "status output is '$env:STATUS'" }
           if ([int]$env:TOTAL -lt 1) { throw 'no resource was evaluated' }
 
+  module-from-source:
+    # Builds Dsc.PipelineRunner from its source repository at a pinned commit and runs that build.
+    # This is also the job that exercises DryRun, which no published release has yet.
+    # Linux uses the DSC v3 engine: DSC v2 needs the OMI library (libmi), which a stock Linux
+    # runner does not have.
+    name: Module from source (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            configuration: tests/fixtures/real-config
+            engine: DscV2
+            resource-modules: PSDscResources@2.12.0.0
+            ref: fe1560dfeca6f2692a2acdebb7eb4ea14e9ba484
+          - os: ubuntu-latest
+            configuration: tests/fixtures/real-config-v3
+            engine: DscV3
+            resource-modules: ''
+            # The first commit whose resource pre-check works on Linux (DSC v3 engine).
+            ref: f6fd5ae752d87df13514cc359b0644d35a30da22
+    steps:
+      - uses: actions/checkout@v4
+      - id: dsc
+        uses: ./
+        with:
+          configuration-path: ${{ matrix.configuration }}
+          mode: DryRun
+          engine: ${{ matrix.engine }}
+          module-source: Repository
+          module-source-ref: ${{ matrix.ref }}
+          resource-modules: ${{ matrix.resource-modules }}
+      - shell: pwsh
+        env:
+          STATUS: ${{ steps.dsc.outputs.status }}
+          TOTAL: ${{ steps.dsc.outputs.total-resources }}
+          VERSION: ${{ steps.dsc.outputs.module-version }}
+        run: |
+          "status=$env:STATUS total=$env:TOTAL version=$env:VERSION"
+          if (-not $env:VERSION) { throw 'module-version output is empty' }
+          if ($env:STATUS -ne 'Completed') { throw "status output is '$env:STATUS'" }
+          if ([int]$env:TOTAL -lt 1) { throw 'no resource was evaluated' }
+
   azure-devops-task:
     name: Azure DevOps task and extension
     runs-on: ubuntu-latest

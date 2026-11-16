@@ -92,6 +92,16 @@ Describe 'Generated and copied files are current' {
     }
 }
 
+Describe 'Logos' {
+
+    It 'Has a light SVG, a dark SVG and a PNG for <_>' -ForEach 'logo', 'logo-github-actions', 'logo-azure-devops', 'logo-gitlab', 'logo-circleci', 'logo-jenkins', 'logo-generic' {
+        foreach ($file in "$_.svg", "$_-dark.svg", "$_-512.png") {
+            Test-Path (Join-Path $Root "assets/$file") | Should -BeTrue -Because "assets/$file is part of the logo family (tools/build-logos.js)"
+        }
+        [xml](Get-RepoText "assets/$_.svg") | Should -Not -BeNullOrEmpty
+    }
+}
+
 Describe 'Platform rules' {
 
     It 'GitHub Action: inputs are passed through env, never written into the script' {

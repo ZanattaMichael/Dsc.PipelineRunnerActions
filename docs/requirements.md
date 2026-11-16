@@ -28,11 +28,39 @@ version is not pinned, because an unpinned run can change behaviour without any 
 The GitLab and CircleCI integrations also fetch the step script from
 `raw.githubusercontent.com` at the start of the job (a component and an orb cannot carry files).
 
+## Running the module from its source repository
+
+By default the step installs a published release of Dsc.PipelineRunner. Set
+`module-source: Repository` to build and run the module from its source repository instead: an
+unreleased commit, a branch you are testing, or your own fork.
+
+```yaml
+module-source: Repository
+module-source-ref: fe1560dfeca6f2692a2acdebb7eb4ea14e9ba484   # tag, branch or (recommended) full commit SHA
+# module-source-repository: https://github.com/<you>/Dsc.PipelineRunner   # default: the upstream repository
+```
+
+| Requirement | Why |
+| --- | --- |
+| `git` on the agent | To clone the source repository. |
+| Access to the PowerShell Gallery | The build restores its build tools, and the module's run-time dependencies are installed. `skip-module-install` cannot be combined with this. |
+| A minute or two of extra run time | The module is built on every run. |
+| A repository you trust | Its build script runs on the agent with the job's identity. |
+
+What happens: the repository is cloned to a temporary directory and checked out at
+`module-source-ref` (a full commit SHA is verified), `build.ps1 -ResolveDependency -Tasks build`
+runs in a separate process, the run-time dependencies are installed (with the repository's own
+pinned installer when the commit has one), and the built module (`output/Dsc.PipelineRunner/<version>/`) is imported by path. `module-version`
+is ignored; the `module-version` output reports the version that was built.
+
+For a private fork, give the agent access with a credential helper or an SSH key; a URL that
+contains a token is rejected.
+
 ## By engine
 
 | Engine | Requirement |
 | --- | --- |
-| `DscV2` | The DSC resources you use must run on the agent's operating system. Most DSC v2 resources are Windows-only, so use a Windows agent. `PSDesiredStateConfiguration` 2.x is installed with the module. |
+| `DscV2` | A Windows agent, in every mode including `DryRun`. On Linux and macOS DSC v2 needs the OMI library (`libmi`), which PowerShell does not include, and most DSC v2 resources are Windows-only. `PSDesiredStateConfiguration` 2.x is installed with the module. |
 | `DscV3` | The `dsc` command-line engine must be on `PATH`. Not needed for `DryRun`. |
 
 ### DSC v3 engine
@@ -52,7 +80,7 @@ See [Getting started on a hosted Linux agent with DSC v3](https://github.com/Zan
 
 | Mode | Requirement |
 | --- | --- |
-| `DryRun` | Nothing beyond the configuration: no engine, no credentials, no connection. Safe for pull requests. Needs a Dsc.PipelineRunner release newer than 1.2.1; the step says so if the installed version does not support it. |
+| `DryRun` | Nothing beyond the configuration: no engine, no credentials, no connection. Safe for pull requests. Needs a Dsc.PipelineRunner release newer than 1.2.1; the step says so if the installed version does not support it. Until that release exists, use `module-source: Repository` (above). |
 | `Test` | Read access to the systems the configuration describes. Changes nothing. |
 | `Set` | Rights to change those systems, for the identity the agent runs as. Gate it with your platform's approvals (GitHub environments, Azure DevOps environment checks, GitLab protected environments, a CircleCI approval job, a Jenkins `input` step). |
 

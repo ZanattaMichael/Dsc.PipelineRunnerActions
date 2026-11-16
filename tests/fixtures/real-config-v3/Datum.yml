@@ -1,0 +1,14 @@
+# A minimal real Datum configuration for the CI job that runs the real Dsc.PipelineRunner.
+# Nodes are the files under Projects/<presence>/.
+ResolutionPrecedence:
+  - Projects\$($Node.ProjectPresence)\$($Node.Project)
+  - Baseline
+
+DatumHandlersThrowOnError: true
+
+default_lookup_options: MostSpecific
+
+PipelineRunnerSettings:
+  ConfigurationVersion: 0.5
+  PipelineRunnerVersion: 1.1.0
+  Engine: DscV3

@@ -1,4 +1,4 @@
-# Jenkins
+# <img src="../assets/logo-jenkins.svg" alt="" width="48" align="top"> Jenkins
 
 The integration is a Pipeline shared-library step, `dscPipelineRunner`. Jenkins loads shared
 libraries straight from Git, so there is no registry: you register this repository once.

@@ -1,0 +1,11 @@
+parameters: {}
+
+variables:
+  FixtureName: DSCPR_CI_FIXTURE
+
+resources:
+
+  - name: CI fixture echo
+    type: Microsoft.DSC.Debug/Echo
+    properties:
+      output: $(variables('FixtureName'))

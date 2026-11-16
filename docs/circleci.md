@@ -1,4 +1,4 @@
-# CircleCI
+# <img src="../assets/logo-circleci.svg" alt="" width="48" align="top"> CircleCI
 
 The integration is an orb, `<namespace>/dsc-pipeline-runner`, with a `run` command, a `run` job
 and a `default` executor.

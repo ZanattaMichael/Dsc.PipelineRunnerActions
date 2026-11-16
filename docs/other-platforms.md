@@ -1,4 +1,4 @@
-# Other platforms
+# <img src="../assets/logo-generic.svg" alt="" width="48" align="top"> Other platforms
 
 Bitbucket Pipelines, TeamCity, Bamboo, Buildkite, Drone, a scheduled task: anything that can run
 PowerShell 7 can run the step script directly. The packaged integrations do nothing more than this.

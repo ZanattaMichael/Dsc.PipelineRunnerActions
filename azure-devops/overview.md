@@ -45,6 +45,7 @@ prints the effective value of every input (secrets only as set or not set).
 | `reportPath` | `dsc-reports` | Where reports are written. |
 | `connect`, `azureDevopsOrganization`, `azureDevopsAuthentication`, `azureDevopsToken` | `None` | Open an Azure DevOps session, for configurations that manage Azure DevOps. |
 | `moduleVersion`, `allowPrerelease`, `moduleRepository`, `resourceModules`, `skipModuleInstall` | | What to install, and from where. |
+| `moduleSource`, `moduleSourceRepository`, `moduleSourceRef` | `Gallery` | Or: build and run the module from its source repository at a tag, branch or commit. |
 | `keepTemporaryDirectory`, `verbose` | `false` | Diagnostics. |
 
 Full reference: [settings](https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions/blob/main/docs/settings.md),

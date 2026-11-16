@@ -206,8 +206,8 @@ if ($engine -eq 'DscV3') {
         $problems.Add("'engine' is DscV3 but the dsc command-line engine is not on PATH. Install it in an earlier step (see docs/requirements.md, 'DSC v3 engine'), or use a container image that includes it.")
     }
 }
-elseif ($engine -eq 'DscV2' -and -not $IsWindows -and $mode -ne 'DryRun') {
-    $warnings.Add("'engine' is DscV2 on a non-Windows agent. Most DSC v2 resources only work on Windows; use a Windows agent, or the DscV3 engine.")
+elseif ($engine -eq 'DscV2' -and -not $IsWindows) {
+    $warnings.Add("'engine' is DscV2 on a non-Windows agent. DSC v2 needs the OMI library (libmi), which PowerShell on Linux and macOS does not include, and most DSC v2 resources only work on Windows. Use a Windows agent, or the DscV3 engine.")
 }
 
 # Azure DevOps connection.
@@ -252,7 +252,40 @@ foreach ($entry in ($settings['resource-modules'] -split '[,\r\n]+' | ForEach-Ob
         $problems.Add("'resource-modules' entry '$entry' is not valid. Use Name or Name@Version, for example PSDscResources@2.12.0.0.")
     }
 }
-if (-not $settings['module-version'] -and -not $skipInstall) {
+# Module from the source repository instead of a published release.
+$fromSource = $settings['module-source'] -eq 'Repository'
+if ($fromSource) {
+    $sourceGit = Get-Command -Name git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    Add-Requirement 'git (to clone the module source repository)' ($null -ne $sourceGit) $(if ($sourceGit) { $sourceGit.Source } else { 'not found on PATH' })
+    if (-not $sourceGit) { $problems.Add("'module-source' is Repository but git is not installed on the agent (not found on PATH).") }
+    if (-not $settings['module-source-repository']) {
+        $problems.Add("'module-source' is Repository but 'module-source-repository' is empty.")
+    }
+    elseif ($settings['module-source-repository'] -match '^[a-z][a-z0-9+.-]*://[^/@]*:[^/@]*@') {
+        $problems.Add("'module-source-repository' contains a password or token. Remove it from the URL; use a credential helper or an SSH key on the agent for a private repository.")
+    }
+    if (-not $settings['module-source-ref']) {
+        $problems.Add("'module-source' is Repository but 'module-source-ref' is empty. Name the tag, branch or commit to build; a full commit SHA is recommended.")
+    }
+    elseif ($settings['module-source-ref'] -notmatch '\A[A-Za-z0-9][A-Za-z0-9._/+-]*\z' -or $settings['module-source-ref'] -match '\.\.') {
+        $problems.Add("'module-source-ref' is not a valid tag, branch or commit name.")
+    }
+    elseif ($settings['module-source-ref'] -notmatch '\A[0-9a-f]{40}\z') {
+        $warnings.Add("'module-source-ref' is not a full commit SHA, so what is built can change between runs. Pin a 40-character commit SHA.")
+    }
+    if ($skipInstall) {
+        $problems.Add("'module-source' is Repository and 'skip-module-install' is true. Building from source installs its build dependencies; set 'skip-module-install' to false, or use 'module-source: Gallery' with a module already on the agent.")
+    }
+    if ($settings['module-version']) {
+        $warnings.Add("'module-version' is ignored because 'module-source' is Repository; the version is whatever 'module-source-ref' builds.")
+    }
+    $warnings.Add("'module-source' is Repository: the build script of $($settings['module-source-repository'] -replace '(?<=://)[^/@\s]+@', '***@') runs on this agent. Use only a repository you trust.")
+}
+elseif ($settings['module-source-ref']) {
+    $warnings.Add("'module-source-ref' is set but 'module-source' is Gallery, so it is ignored. Set 'module-source' to Repository to build from source.")
+}
+
+if (-not $settings['module-version'] -and -not $skipInstall -and -not $fromSource) {
     $warnings.Add("'module-version' is empty, so the newest stable Dsc.PipelineRunner is used unless one is already installed. Pin an exact version.")
 }
 
@@ -371,20 +404,89 @@ function Install-StepModule {
     }
 }
 
+# Clones the module's source repository at a ref, builds it with the repository's own build script
+# and installs its run-time dependencies. Returns the path of the built module manifest.
+function Install-StepModuleFromSource {
+    param([string] $Repository, [string] $Ref)
+
+    $pwsh = (Get-Process -Id $PID).Path
+    $work = Join-Path ([System.IO.Path]::GetTempPath()) ('dscpr-source-' + [guid]::NewGuid().ToString('N'))
+
+    Write-Host "  Cloning the module source at '$Ref'."
+    # Arguments are passed as an array (never through a shell), and '--' ends option parsing,
+    # so neither the URL nor the ref can be read as a git option.
+    & git clone --quiet --no-checkout -- $Repository $work 2>&1 | ForEach-Object { Write-Host "    $_" }
+    if ($LASTEXITCODE -ne 0) { throw "Could not clone the module source repository (git exit code $LASTEXITCODE). Check 'module-source-repository' and the agent's access to it." }
+    & git -C $work checkout --quiet --detach $Ref -- 2>&1 | ForEach-Object { Write-Host "    $_" }
+    if ($LASTEXITCODE -ne 0) { throw "Could not check out '$Ref' in the module source repository. Check 'module-source-ref'." }
+
+    $head = (& git -C $work rev-parse HEAD | Select-Object -First 1).Trim()
+    if ($Ref -match '\A[0-9a-f]{40}\z' -and $head -ne $Ref) {
+        throw "The module source checkout is at $head, not the requested commit $Ref."
+    }
+    Write-Host "  Building commit $head."
+
+    # The build script is Build.ps1 or build.ps1 depending on the commit; file systems differ in case sensitivity.
+    $buildScript = Get-ChildItem -LiteralPath $work -File | Where-Object { $_.Name -ieq 'build.ps1' } | Select-Object -First 1
+    if (-not $buildScript) { throw "The module source repository has no build.ps1 at '$Ref'; it does not look like Dsc.PipelineRunner." }
+
+    # Commits up to and including the 1.2 line have build tasks that look for 'Output' while the
+    # build writes 'output'. That only works on a case-insensitive file system, so on Linux and
+    # macOS give those commits an 'Output' that is the same directory.
+    if (-not $IsWindows) {
+        $null = New-Item -ItemType Directory -Path (Join-Path $work 'output') -Force
+        if (-not (Test-Path -LiteralPath (Join-Path $work 'Output'))) {
+            $null = New-Item -ItemType SymbolicLink -Path (Join-Path $work 'Output') -Target (Join-Path $work 'output')
+        }
+    }
+
+    # A separate process: the build loads its own tool modules, which must not leak into the run.
+    & $pwsh -NoLogo -NoProfile -NonInteractive -File $buildScript.FullName -ResolveDependency -Tasks build 2>&1 | ForEach-Object { Write-Host "    $_" }
+    if ($LASTEXITCODE -ne 0) { throw "Building the module from source failed (exit code $LASTEXITCODE). See the build output above." }
+
+    # The built module is output/Dsc.PipelineRunner/<version>/ (or under output/builtModule/ when
+    # the build is configured that way). output/RequiredModules holds build tools, not the result.
+    $manifest = Get-ChildItem -Path (Join-Path $work 'output') -Recurse -Filter 'Dsc.PipelineRunner.psd1' -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '[\\/]RequiredModules[\\/]' -and $_.Directory.Parent.Name -eq 'Dsc.PipelineRunner' } |
+        Sort-Object -Property FullName | Select-Object -First 1
+    if (-not $manifest) { throw 'The build finished but produced no Dsc.PipelineRunner module under its output directory.' }
+
+    # Run-time dependencies. Newer commits carry a pinned installer; use it when it is there.
+    $pinnedInstaller = Join-Path $work 'scripts/Install-PinnedModule.ps1'
+    $required = @((Import-PowerShellDataFile -LiteralPath $manifest.FullName).RequiredModules | ForEach-Object { if ($_ -is [string]) { $_ } else { $_.ModuleName } })
+    if ((Test-Path -LiteralPath $pinnedInstaller) -and $required.Count -gt 0) {
+        Write-Host "  Installing the pinned run-time dependencies: $($required -join ', ')."
+        & $pinnedInstaller -Name $required | ForEach-Object { Write-Host "    $_" }
+    }
+    else {
+        foreach ($name in $required) { Install-StepModule -Name $name -Version '' -Repository $settings['module-repository'] }
+    }
+
+    Write-Host "  Built $($manifest.FullName)"
+    return $manifest.FullName
+}
+
+$sourceManifest = $null
+
 try {
     Write-StepGroup 'Dsc.PipelineRunner: modules'
     if ($skipInstall) {
         Write-Host "  'skip-module-install' is true: nothing is installed."
     }
     else {
-        Install-StepModule -Name 'Dsc.PipelineRunner' -Version $settings['module-version'] -Repository $settings['module-repository'] -Prerelease:(Test-Flag 'allow-prerelease')
+        if ($fromSource) {
+            $sourceManifest = Install-StepModuleFromSource -Repository $settings['module-source-repository'] -Ref $settings['module-source-ref']
+        }
+        else {
+            Install-StepModule -Name 'Dsc.PipelineRunner' -Version $settings['module-version'] -Repository $settings['module-repository'] -Prerelease:(Test-Flag 'allow-prerelease')
+        }
         foreach ($module in $resourceModules) {
             Install-StepModule -Name $module.Name -Version $module.Version -Repository $settings['module-repository'] -Prerelease:($module.Version -match '-')
         }
     }
 
     $missing = @()
-    if (-not (Get-Module -ListAvailable -Name 'Dsc.PipelineRunner')) { $missing += 'Dsc.PipelineRunner' }
+    if (-not $sourceManifest -and -not (Get-Module -ListAvailable -Name 'Dsc.PipelineRunner')) { $missing += 'Dsc.PipelineRunner' }
     foreach ($module in $resourceModules) { if (-not (Get-Module -ListAvailable -Name $module.Name)) { $missing += $module.Name } }
     if ($connect -eq 'AzureDevOps' -and $mode -ne 'DryRun' -and -not (Get-Module -ListAvailable -Name 'AzureDevOpsDsc.Common')) {
         $missing += "AzureDevOpsDsc.Common (needed for connect: AzureDevOps; add AzureDevOpsDscNative to 'resource-modules')"
@@ -405,7 +507,8 @@ try {
     $ErrorActionPreference = 'Continue'
 
     $importArguments = @{ Name = 'Dsc.PipelineRunner'; PassThru = $true }
-    if ($settings['module-version']) { $importArguments.RequiredVersion = ($settings['module-version'] -split '-')[0] }
+    if ($sourceManifest) { $importArguments.Name = $sourceManifest }
+    elseif ($settings['module-version']) { $importArguments.RequiredVersion = ($settings['module-version'] -split '-')[0] }
     $runnerModule = Import-Module @importArguments
     if (-not $runnerModule) { throw 'The Dsc.PipelineRunner module could not be imported. See the errors above.' }
     $runnerModule = @($runnerModule)[0]
@@ -418,7 +521,7 @@ try {
 
     $runnerCommand = Get-Command -Name Invoke-DscRunner -Module Dsc.PipelineRunner
     if ($mode -eq 'DryRun' -and 'DryRun' -notin $runnerCommand.Parameters['Mode'].Attributes.Where({ $_ -is [ValidateSet] }).ValidValues) {
-        throw "'mode' is DryRun, but Dsc.PipelineRunner $($result.ModuleVersion) does not support it. Set 'module-version' to a release that does."
+        throw "'mode' is DryRun, but Dsc.PipelineRunner $($result.ModuleVersion) does not support it. Set 'module-version' to a release that does, or build a newer commit with 'module-source: Repository'."
     }
 
     #endregion

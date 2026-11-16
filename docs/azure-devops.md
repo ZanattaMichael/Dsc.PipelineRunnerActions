@@ -1,4 +1,4 @@
-# Azure DevOps
+# <img src="../assets/logo-azure-devops.svg" alt="" width="48" align="top"> Azure DevOps
 
 The integration is a pipeline task, `DscPipelineRunner@1`, delivered in the **Dsc.PipelineRunner**
 extension.

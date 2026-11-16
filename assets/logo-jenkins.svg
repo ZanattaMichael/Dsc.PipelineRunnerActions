@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="t d">
+  <title id="t">Dsc.PipelineRunner for Jenkins</title>
+  <desc id="d">The Dsc.PipelineRunner mark (three configuration layers merge into a pipeline that ends in a check mark) with a badge showing a cog: an automation server.</desc>
+  <defs><linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0e66b5"/><stop offset="1" stop-color="#249ee2"/></linearGradient></defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#tile)"/>
+  <g transform="translate(-6 -22)">
+    <g fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M44 94 C 82 94, 88 128, 120 128"/><path d="M44 128 L 120 128"/><path d="M44 162 C 82 162, 88 128, 120 128"/><path d="M120 128 L 142 128"/>
+    </g>
+    <g fill="#ffffff"><circle cx="44" cy="94" r="8"/><circle cx="44" cy="128" r="8"/><circle cx="44" cy="162" r="8"/></g>
+    <path d="M140 128 L 166 154 L 214 100" fill="none" stroke="#9ff3d0" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <circle cx="196" cy="196" r="52" fill="#ffffff"/>
+  <circle cx="196" cy="196" r="45" fill="#c62a2a"/>
+  <circle cx="196" cy="196" r="15" fill="none" stroke="#ffffff" stroke-width="7"/><path d="M215.0 196.0 L223.0 196.0 M209.4 209.4 L215.1 215.1 M196.0 215.0 L196.0 223.0 M182.6 209.4 L176.9 215.1 M177.0 196.0 L169.0 196.0 M182.6 182.6 L176.9 176.9 M196.0 177.0 L196.0 169.0 M209.4 182.6 L215.1 176.9" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
