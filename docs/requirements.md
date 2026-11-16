@@ -60,7 +60,7 @@ contains a token is rejected.
 
 | Engine | Requirement |
 | --- | --- |
-| `DscV2` | The DSC resources you use must run on the agent's operating system. Most DSC v2 resources are Windows-only, so use a Windows agent. `PSDesiredStateConfiguration` 2.x is installed with the module. |
+| `DscV2` | A Windows agent, in every mode including `DryRun`. On Linux and macOS DSC v2 needs the OMI library (`libmi`), which PowerShell does not include, and most DSC v2 resources are Windows-only. `PSDesiredStateConfiguration` 2.x is installed with the module. |
 | `DscV3` | The `dsc` command-line engine must be on `PATH`. Not needed for `DryRun`. |
 
 ### DSC v3 engine

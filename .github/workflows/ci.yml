@@ -110,22 +110,33 @@ jobs:
   module-from-source:
     # Builds Dsc.PipelineRunner from its source repository at a pinned commit and runs that build.
     # This is also the job that exercises DryRun, which no published release has yet.
+    # Linux uses the DSC v3 engine: DSC v2 needs the OMI library (libmi), which a stock Linux
+    # runner does not have.
     name: Module from source (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: windows-latest
+            configuration: tests/fixtures/real-config
+            engine: DscV2
+            resource-modules: PSDscResources@2.12.0.0
+          - os: ubuntu-latest
+            configuration: tests/fixtures/real-config-v3
+            engine: DscV3
+            resource-modules: ''
     steps:
       - uses: actions/checkout@v4
       - id: dsc
         uses: ./
         with:
-          configuration-path: tests/fixtures/real-config
+          configuration-path: ${{ matrix.configuration }}
           mode: DryRun
+          engine: ${{ matrix.engine }}
           module-source: Repository
           module-source-ref: fe1560dfeca6f2692a2acdebb7eb4ea14e9ba484
-          resource-modules: PSDscResources@2.12.0.0
+          resource-modules: ${{ matrix.resource-modules }}
       - shell: pwsh
         env:
           STATUS: ${{ steps.dsc.outputs.status }}

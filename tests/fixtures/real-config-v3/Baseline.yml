@@ -1,0 +1,4 @@
+parameters: {}
+
+variables:
+  FixtureName: DSCPR_CI_FIXTURE

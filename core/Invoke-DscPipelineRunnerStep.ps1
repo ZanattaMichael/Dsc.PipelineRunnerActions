@@ -206,8 +206,8 @@ if ($engine -eq 'DscV3') {
         $problems.Add("'engine' is DscV3 but the dsc command-line engine is not on PATH. Install it in an earlier step (see docs/requirements.md, 'DSC v3 engine'), or use a container image that includes it.")
     }
 }
-elseif ($engine -eq 'DscV2' -and -not $IsWindows -and $mode -ne 'DryRun') {
-    $warnings.Add("'engine' is DscV2 on a non-Windows agent. Most DSC v2 resources only work on Windows; use a Windows agent, or the DscV3 engine.")
+elseif ($engine -eq 'DscV2' -and -not $IsWindows) {
+    $warnings.Add("'engine' is DscV2 on a non-Windows agent. DSC v2 needs the OMI library (libmi), which PowerShell on Linux and macOS does not include, and most DSC v2 resources only work on Windows. Use a Windows agent, or the DscV3 engine.")
 }
 
 # Azure DevOps connection.
