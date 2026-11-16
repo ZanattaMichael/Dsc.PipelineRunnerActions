@@ -26,7 +26,7 @@ inputs:
     required: false
     default: ''
   source-token:
-    description: 'Token used to clone configuration-repository-url over HTTPS when the repository is private. Needs read access to that repository only. Supply it from the platform''s secret store. Pass a secret, for example ${{ secrets.NAME }}.'
+    description: 'Token used to clone configuration-repository-url over HTTPS when the repository is private. Needs read access to that repository only. Supply it from the platform''s secret store. Pass it from a repository, environment or organization secret.'
     required: false
     default: ''
   mode:
@@ -62,7 +62,7 @@ inputs:
     required: false
     default: 'PAT'
   azure-devops-token:
-    description: 'Azure DevOps personal access token (20 to 120 letters and digits). Required when connect is AzureDevOps, authentication is PAT and mode is not DryRun. Supply it from the platform''s secret store. Pass a secret, for example ${{ secrets.NAME }}.'
+    description: 'Azure DevOps personal access token (20 to 120 letters and digits). Required when connect is AzureDevOps, authentication is PAT and mode is not DryRun. Supply it from the platform''s secret store. Pass it from a repository, environment or organization secret.'
     required: false
     default: ''
   module-version:

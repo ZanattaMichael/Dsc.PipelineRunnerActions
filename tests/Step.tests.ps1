@@ -15,8 +15,9 @@ BeforeAll {
         $base = @{ 'skip-module-install' = 'true'; 'report-path' = $script:Reports }
         foreach ($key in $Setting.Keys) { $base[$key] = $Setting[$key] }
         $script:Log = & $script:Step -Setting $base -Platform $Platform -NoExit -PreflightOnly:$PreflightOnly 6>&1
-        $script:Result = $script:Log | Where-Object { $_ -is [pscustomobject] -and $_.PSObject.Properties['Status'] } | Select-Object -Last 1
-        $script:Text = ($script:Log | Where-Object { $_ -isnot [pscustomobject] } | Out-String)
+        # 6>&1 turns Write-Host output into InformationRecord objects; everything else is output.
+        $script:Text = ($script:Log | Where-Object { $_ -is [System.Management.Automation.InformationRecord] } | ForEach-Object { [string]$_.MessageData }) -join "`n"
+        $script:Result = $script:Log | Where-Object { $_ -isnot [System.Management.Automation.InformationRecord] -and $_.PSObject.Properties['Status'] } | Select-Object -Last 1
         $script:Call = if (Test-Path $env:DSCPR_TEST_CALL_FILE) { Get-Content $env:DSCPR_TEST_CALL_FILE -Raw | ConvertFrom-Json } else { $null }
     }
 }
@@ -196,23 +197,23 @@ Describe 'Invoke-DscPipelineRunnerStep' {
         It 'Fails the step when the run failed and fail-on-error is true' {
             $env:DSCPR_TEST_STATUS = 'Failed'
             $global:LASTEXITCODE = 0
-            pwsh -NoProfile -Command "`$env:PSModulePath = '$($env:PSModulePath)'; & '$Step' -Setting @{ 'configuration-path' = '$Config'; 'skip-module-install' = 'true'; 'report-path' = '$Reports' } -Platform generic" | Out-Null
+            pwsh -NoProfile -Command "`$env:PSModulePath = '$($env:PSModulePath)'; & '$Step' -Setting @{ 'configuration-path' = '$Config'; 'skip-module-install' = 'true'; 'report-path' = '$Reports' } -Platform generic; exit `$LASTEXITCODE" | Out-Null
             $LASTEXITCODE | Should -Be 1
         }
 
         It 'Does not fail the step when fail-on-error is false' {
             $env:DSCPR_TEST_STATUS = 'Failed'
-            pwsh -NoProfile -Command "`$env:PSModulePath = '$($env:PSModulePath)'; & '$Step' -Setting @{ 'configuration-path' = '$Config'; 'skip-module-install' = 'true'; 'report-path' = '$Reports'; 'fail-on-error' = 'false' } -Platform generic" | Out-Null
+            pwsh -NoProfile -Command "`$env:PSModulePath = '$($env:PSModulePath)'; & '$Step' -Setting @{ 'configuration-path' = '$Config'; 'skip-module-install' = 'true'; 'report-path' = '$Reports'; 'fail-on-error' = 'false' } -Platform generic; exit `$LASTEXITCODE" | Out-Null
             $LASTEXITCODE | Should -Be 0
             (Get-Content (Join-Path $Reports 'outputs.env')) | Should -Contain 'DSCPR_STATUS=Failed'
         }
 
         It 'Always fails when the runner could not run, and exits 2 for invalid settings' {
             $env:DSCPR_TEST_THROW = 'compile blew up'
-            pwsh -NoProfile -Command "`$env:PSModulePath = '$($env:PSModulePath)'; & '$Step' -Setting @{ 'configuration-path' = '$Config'; 'skip-module-install' = 'true'; 'report-path' = '$Reports'; 'fail-on-error' = 'false' } -Platform generic" | Out-Null
+            pwsh -NoProfile -Command "`$env:PSModulePath = '$($env:PSModulePath)'; & '$Step' -Setting @{ 'configuration-path' = '$Config'; 'skip-module-install' = 'true'; 'report-path' = '$Reports'; 'fail-on-error' = 'false' } -Platform generic; exit `$LASTEXITCODE" | Out-Null
             $LASTEXITCODE | Should -Be 1
 
-            pwsh -NoProfile -Command "& '$Step' -Setting @{ 'report-path' = '$Reports' } -Platform generic" | Out-Null
+            pwsh -NoProfile -Command "& '$Step' -Setting @{ 'report-path' = '$Reports' } -Platform generic; exit `$LASTEXITCODE" | Out-Null
             $LASTEXITCODE | Should -Be 2
         }
 

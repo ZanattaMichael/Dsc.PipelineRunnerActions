@@ -165,6 +165,6 @@ jobs:
         shell: pwsh
         run: |
           # PSScriptAnalyzer ships on GitHub-hosted runners.
-          $findings = Invoke-ScriptAnalyzer -Path core, tools -Recurse -Severity Error, Warning -ExcludeRule PSAvoidUsingWriteHost, PSAvoidUsingConvertToSecureStringWithPlainText
+          $findings = 'core', 'tools' | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Recurse -Severity Error, Warning -ExcludeRule PSAvoidUsingWriteHost, PSAvoidUsingConvertToSecureStringWithPlainText }
           $findings | Format-Table -AutoSize
           if ($findings) { throw "$(@($findings).Count) PSScriptAnalyzer finding(s)" }

@@ -11,7 +11,7 @@ BeforeDiscovery {
             Name    = $item.name
             Camel   = $parts[0] + (($parts | Select-Object -Skip 1 | ForEach-Object { $_.Substring(0, 1).ToUpperInvariant() + $_.Substring(1) }) -join '')
             Snake   = $item.name -replace '-', '_'
-            Env     = $item.env
+            EnvName = $item.env
             Default = [string]$item.default
             Secret  = [bool]$item.secret
         }
@@ -33,27 +33,27 @@ BeforeAll {
 
 Describe 'Every integration exposes every setting' {
 
-    It 'GitHub Action has input <Name> with the documented default, passed as <Env>' -ForEach $SettingCases {
+    It 'GitHub Action has input <Name> with the documented default, passed as <EnvName>' -ForEach $SettingCases {
         $Action | Should -Match "(?m)^  $([regex]::Escape($Name)):\r?\n    description: .+\r?\n    required: false\r?\n    default: '$([regex]::Escape($Default))'"
-        $Action | Should -Match "(?m)^\s+$Env: \`$\{\{ inputs\.$([regex]::Escape($Name)) \}\}"
+        $Action | Should -Match "(?m)^\s+${EnvName}: \`$\{\{ inputs\.$([regex]::Escape($Name)) \}\}"
     }
 
-    It 'Azure DevOps task has input <Camel> with the documented default, mapped to <Env>' -ForEach $SettingCases {
+    It 'Azure DevOps task has input <Camel> with the documented default, mapped to <EnvName>' -ForEach $SettingCases {
         $taskInput = $Task.inputs | Where-Object name -EQ $Camel
         $taskInput | Should -Not -BeNullOrEmpty
         ([string]$taskInput.defaultValue).ToLowerInvariant() | Should -Be $Default.ToLowerInvariant()
         $taskInput.helpMarkDown | Should -Not -BeNullOrEmpty
-        $TaskScript | Should -Match "\['$Camel', '$Env', $("$Secret".ToLowerInvariant())\]"
+        $TaskScript | Should -Match "\['$Camel', '$EnvName', $("$Secret".ToLowerInvariant())\]"
     }
 
-    It 'GitLab component has input <Snake> (or reads the secret variable <Env>)' -ForEach $SettingCases {
+    It 'GitLab component has input <Snake> (or reads the secret variable <EnvName>)' -ForEach $SettingCases {
         if ($Secret) {
-            $GitLab | Should -Match "(?m)^#\s+$Env\s"
+            $GitLab | Should -Match "(?m)^#\s+$EnvName\s"
             $GitLab | Should -Not -Match "(?m)^    $($Snake):"
         }
         else {
             $GitLab | Should -Match "(?m)^    $($Snake):\r?\n      description: .+\r?\n      default: '$([regex]::Escape($Default))'"
-            $GitLab | Should -Match "(?m)^    $Env: '\`$\[\[ inputs\.$Snake \]\]'"
+            $GitLab | Should -Match "(?m)^    ${EnvName}: '\`$\[\[ inputs\.$Snake \]\]'"
         }
     }
 
@@ -61,11 +61,11 @@ Describe 'Every integration exposes every setting' {
         $parameter = if ($Secret) { "$Name-variable" } else { $Name }
         ([regex]::Matches($Orb, "(?m)^      $([regex]::Escape($parameter)):\r?\n        description: ")).Count | Should -Be 2
         $Orb | Should -Match "(?m)^          $([regex]::Escape($parameter)): << parameters\.$([regex]::Escape($parameter)) >>"
-        if ($Secret) { $Orb | Should -Match "default: $Env" }
+        if ($Secret) { $Orb | Should -Match "default: $EnvName" }
     }
 
     It 'Jenkins step knows setting <Camel>' -ForEach $SettingCases {
-        $Jenkins | Should -Match "\[name: '$Camel', env: '$Env', secret: $("$Secret".ToLowerInvariant())\]"
+        $Jenkins | Should -Match "\[name: '$Camel', env: '$EnvName', secret: $("$Secret".ToLowerInvariant())\]"
     }
 
     It 'docs/settings.md describes <Name>' -ForEach $SettingCases {
