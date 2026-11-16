@@ -1,0 +1,15 @@
+parameters: {}
+
+variables:
+  FixtureName: DSCPR_CI_FIXTURE
+
+resources:
+
+  - name: CI fixture environment variable
+    type: PSDscResources/Environment
+    properties:
+      Name: $(variables('FixtureName'))
+      Value: present
+      Ensure: Present
+      Target:
+        - Process
