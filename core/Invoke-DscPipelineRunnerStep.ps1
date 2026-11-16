@@ -343,7 +343,11 @@ function Install-StepModule {
         return
     }
 
-    $usePsResourceGet = [bool](Get-Command -Name Install-PSResource -ErrorAction SilentlyContinue)
+    # Install-Module (PowerShellGet) is preferred where it exists: it is the documented way to
+    # install Dsc.PipelineRunner, and it resolves the module's dependencies to their newest
+    # allowed versions. Install-PSResource resolves a dependency that only has a maximum version
+    # to an old release (it picked datum 0.0.21), which does not load.
+    $usePsResourceGet = -not (Get-Command -Name Install-Module -ErrorAction SilentlyContinue)
     for ($attempt = 1; $attempt -le 3; $attempt++) {
         try {
             if ($usePsResourceGet) {
