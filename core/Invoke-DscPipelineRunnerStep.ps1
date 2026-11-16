@@ -38,6 +38,7 @@ Validate, print the requirements and settings, and stop. Nothing is installed or
 .OUTPUTS
 [pscustomobject] The step result (also written to <report-path>/result.json).
 #>
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'NoExit', Justification = 'Read by the nested Exit-Step function.')]
 [CmdletBinding()]
 param(
     [hashtable] $Setting = @{},
@@ -283,7 +284,7 @@ $settingRows = foreach ($item in $definition.settings) {
     $value = $settings[$item.name]
     $shown = if ($item.secret) { if ([string]::IsNullOrEmpty($value)) { '(not set)' } else { '(set, hidden)' } }
     elseif ([string]::IsNullOrEmpty($value)) { '(empty)' }
-    else { ($value -replace '\r?\n', ', ') }
+    else { (($value -replace '\r?\n', ', ') -replace '(?<=://)[^/@\s]+@', '***@') }   # never show a credential embedded in a URL
     $origin = if ($value -eq [string]$item.default) { 'default' } else { 'set' }
     [pscustomobject]@{ Setting = $item.name; Value = $shown; Origin = $origin }
 }
@@ -387,9 +388,19 @@ try {
         throw "Required module(s) are not installed on the agent: $($missing -join '; '). Install them in the agent image, or set 'skip-module-install' to false."
     }
 
-    $importArguments = @{ Name = 'Dsc.PipelineRunner'; ErrorAction = 'Stop'; PassThru = $true }
+    # Dsc.PipelineRunner and the DSC modules are written for PowerShell's default error handling
+    # (non-terminating errors are reported and the run continues; the runner records them per
+    # resource). Some CI shells set $ErrorActionPreference = 'Stop' globally (GitHub Actions does
+    # for pwsh steps), which would turn the first such error into an abort. Run the module under
+    # the default, and put the caller's preference back afterwards.
+    $callerErrorActionPreference = $global:ErrorActionPreference
+    $global:ErrorActionPreference = 'Continue'
+
+    $importArguments = @{ Name = 'Dsc.PipelineRunner'; PassThru = $true }
     if ($settings['module-version']) { $importArguments.RequiredVersion = ($settings['module-version'] -split '-')[0] }
     $runnerModule = Import-Module @importArguments
+    if (-not $runnerModule) { throw 'The Dsc.PipelineRunner module could not be imported. See the errors above.' }
+    $runnerModule = @($runnerModule)[0]
     $result.ModuleVersion = [string]$runnerModule.Version
     if ($runnerModule.PrivateData -and $runnerModule.PrivateData.PSData -and $runnerModule.PrivateData.PSData['Prerelease']) {
         $result.ModuleVersion = '{0}-{1}' -f $runnerModule.Version, $runnerModule.PrivateData.PSData['Prerelease']
@@ -448,6 +459,9 @@ catch {
     $result.Status = 'Aborted'
     $result.Problems = @($_.Exception.Message)
     Write-StepProblem -Message "Dsc.PipelineRunner did not complete: $($_.Exception.Message)"
+}
+finally {
+    if (Get-Variable -Name callerErrorActionPreference -ErrorAction Ignore) { $global:ErrorActionPreference = $callerErrorActionPreference }
 }
 
 #endregion
