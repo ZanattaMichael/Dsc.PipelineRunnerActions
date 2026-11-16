@@ -125,6 +125,7 @@ jobs:
           mode: DryRun
           module-source: Repository
           module-source-ref: fe1560dfeca6f2692a2acdebb7eb4ea14e9ba484
+          resource-modules: PSDscResources@2.12.0.0
       - shell: pwsh
         env:
           STATUS: ${{ steps.dsc.outputs.status }}
