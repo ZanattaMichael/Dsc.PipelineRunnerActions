@@ -52,7 +52,8 @@ param(
     [switch] $NoExit
 )
 
-Set-StrictMode -Version 3.0
+# No Set-StrictMode here on purpose: a module's ScriptsToProcess runs in the importing scope and
+# would inherit it, and modules this step loads are not all written for strict mode.
 $ErrorActionPreference = 'Stop'
 
 #region platform -------------------------------------------------------------------------------
@@ -258,7 +259,7 @@ if (-not $settings['module-version'] -and -not $skipInstall) {
 # Report directory.
 $reportPath = [System.IO.Path]::GetFullPath($settings['report-path'], (Get-Location).Path)
 try {
-    $null = New-Item -ItemType Directory -Path $reportPath -Force
+    $null = New-Item -ItemType Directory -Path $reportPath -Force -ErrorAction Stop
     Add-Requirement 'Report directory is writable' $true $reportPath
 }
 catch {
@@ -393,8 +394,11 @@ try {
     # resource). Some CI shells set $ErrorActionPreference = 'Stop' globally (GitHub Actions does
     # for pwsh steps), which would turn the first such error into an abort. Run the module under
     # the default, and put the caller's preference back afterwards.
+    # Both scopes matter: module functions read the global preference, and a module's
+    # ScriptsToProcess runs in this script's scope.
     $callerErrorActionPreference = $global:ErrorActionPreference
     $global:ErrorActionPreference = 'Continue'
+    $ErrorActionPreference = 'Continue'
 
     $importArguments = @{ Name = 'Dsc.PipelineRunner'; PassThru = $true }
     if ($settings['module-version']) { $importArguments.RequiredVersion = ($settings['module-version'] -split '-')[0] }
@@ -461,6 +465,7 @@ catch {
     Write-StepProblem -Message "Dsc.PipelineRunner did not complete: $($_.Exception.Message)"
 }
 finally {
+    $ErrorActionPreference = 'Stop'
     if (Get-Variable -Name callerErrorActionPreference -ErrorAction Ignore) { $global:ErrorActionPreference = $callerErrorActionPreference }
 }
 
