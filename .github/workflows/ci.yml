@@ -122,10 +122,13 @@ jobs:
             configuration: tests/fixtures/real-config
             engine: DscV2
             resource-modules: PSDscResources@2.12.0.0
+            ref: fe1560dfeca6f2692a2acdebb7eb4ea14e9ba484
           - os: ubuntu-latest
             configuration: tests/fixtures/real-config-v3
             engine: DscV3
             resource-modules: ''
+            # The first commit whose resource pre-check works on Linux (DSC v3 engine).
+            ref: f6fd5ae752d87df13514cc359b0644d35a30da22
     steps:
       - uses: actions/checkout@v4
       - id: dsc
@@ -135,7 +138,7 @@ jobs:
           mode: DryRun
           engine: ${{ matrix.engine }}
           module-source: Repository
-          module-source-ref: fe1560dfeca6f2692a2acdebb7eb4ea14e9ba484
+          module-source-ref: ${{ matrix.ref }}
           resource-modules: ${{ matrix.resource-modules }}
       - shell: pwsh
         env:
