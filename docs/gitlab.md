@@ -1,4 +1,4 @@
-# GitLab CI/CD
+# <img src="../assets/logo-gitlab.svg" alt="" width="48" align="top"> GitLab CI/CD
 
 The integration is a CI/CD component, `dsc-pipeline-runner`, that adds one job to your pipeline.
 

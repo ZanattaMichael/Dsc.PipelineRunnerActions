@@ -1,17 +1,22 @@
-# Dsc.PipelineRunner Actions
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/header-dark.svg">
+    <img src="assets/header-light.svg" alt="Dsc.PipelineRunner Actions: one pipeline step for GitHub Actions, Azure DevOps, GitLab, CircleCI and Jenkins" height="120">
+  </picture>
+</h1>
 
 CI/CD integrations for [Dsc.PipelineRunner](https://github.com/ZanattaMichael/Dsc.PipelineRunner):
 run a Datum-driven Desired State Configuration as one step of a pipeline, with reports and a
 pass/fail gate.
 
-| Platform | Integration | Published to | Guide |
-| --- | --- | --- | --- |
-| GitHub Actions | Action ([`action.yml`](action.yml)) | GitHub Marketplace | [docs/github-actions.md](docs/github-actions.md) |
-| Azure DevOps | Pipeline task in an extension ([`azure-devops/`](azure-devops)) | Visual Studio Marketplace | [docs/azure-devops.md](docs/azure-devops.md) |
-| GitLab CI/CD | CI/CD component ([`templates/`](templates)) | CI/CD Catalog | [docs/gitlab.md](docs/gitlab.md) |
-| CircleCI | Orb ([`circleci/orb.yml`](circleci/orb.yml)) | Orb registry | [docs/circleci.md](docs/circleci.md) |
-| Jenkins | Shared-library step ([`jenkins/`](jenkins)) | Loaded from this repository by tag | [docs/jenkins.md](docs/jenkins.md) |
-| Bitbucket, TeamCity, anything else | The step script itself ([`core/`](core)) | This repository | [docs/other-platforms.md](docs/other-platforms.md) |
+| | Platform | Integration | Published to | Guide |
+| --- | --- | --- | --- | --- |
+| <img src="assets/logo-github-actions.svg" alt="" width="40"> | GitHub Actions | Action ([`action.yml`](action.yml)) | GitHub Marketplace | [docs/github-actions.md](docs/github-actions.md) |
+| <img src="assets/logo-azure-devops.svg" alt="" width="40"> | Azure DevOps | Pipeline task in an extension ([`azure-devops/`](azure-devops)) | Visual Studio Marketplace | [docs/azure-devops.md](docs/azure-devops.md) |
+| <img src="assets/logo-gitlab.svg" alt="" width="40"> | GitLab CI/CD | CI/CD component ([`templates/`](templates)) | CI/CD Catalog | [docs/gitlab.md](docs/gitlab.md) |
+| <img src="assets/logo-circleci.svg" alt="" width="40"> | CircleCI | Orb ([`circleci/orb.yml`](circleci/orb.yml)) | Orb registry | [docs/circleci.md](docs/circleci.md) |
+| <img src="assets/logo-jenkins.svg" alt="" width="40"> | Jenkins | Shared-library step ([`jenkins/`](jenkins)) | Loaded from this repository by tag | [docs/jenkins.md](docs/jenkins.md) |
+| <img src="assets/logo-generic.svg" alt="" width="40"> | Bitbucket, TeamCity, anything else | The step script itself ([`core/`](core)) | This repository | [docs/other-platforms.md](docs/other-platforms.md) |
 
 Every integration is a thin wrapper around the same script, so they all take the same settings,
 apply the same defaults and behave the same way.
