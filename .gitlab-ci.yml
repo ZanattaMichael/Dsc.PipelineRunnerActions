@@ -1,0 +1,32 @@
+# Pipeline of the GitLab project that hosts the component (the GitLab copy of this repository).
+# GitHub's "Publish GitLab component" workflow pushes each release here as a tag such as 1.2.0;
+# this pipeline tests the component and creates the release that publishes it to the CI/CD Catalog.
+#
+# One-time project setup is in docs/publishing.md.
+stages: [test, release]
+
+include:
+  # The component as it is at this commit, run against the stand-in module in tests/fixtures.
+  - component: $CI_SERVER_FQDN/$CI_PROJECT_PATH/dsc-pipeline-runner@$CI_COMMIT_SHA
+    inputs:
+      job_name: component-self-test
+      stage: test
+      configuration_path: tests/fixtures/config
+      skip_module_install: 'true'
+      actions_ref: $CI_COMMIT_SHA
+
+component-self-test:
+  variables:
+    PSModulePath: $CI_PROJECT_DIR/tests/fixtures/modules
+    DSCPR_TEST_CALL_FILE: $CI_PROJECT_DIR/call.json
+
+publish-to-catalog:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/
+  script:
+    - echo "Publishing Dsc.PipelineRunner component $CI_COMMIT_TAG to the CI/CD Catalog"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    description: 'Dsc.PipelineRunner CI/CD component $CI_COMMIT_TAG. Requirements and settings: see README.md and docs/.'

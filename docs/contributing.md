@@ -1,0 +1,42 @@
+# Contributing
+
+## Layout
+
+| Path | What |
+| --- | --- |
+| `core/Invoke-DscPipelineRunnerStep.ps1` | The step. All behaviour lives here. |
+| `core/settings.json` | The one list of settings and outputs. |
+| `action.yml` | GitHub Action (must be at the repository root for the Marketplace). |
+| `azure-devops/` | Extension manifest, task (`task.json`, `index.js`), Marketplace page (`overview.md`). |
+| `templates/dsc-pipeline-runner.yml` | GitLab component (must be in `templates/` at the root). |
+| `circleci/orb.yml` | CircleCI orb. |
+| `jenkins/` | Shared library: `vars/` and a committed copy of `core/` in `resources/`. |
+| `examples/` | A complete pipeline per platform. |
+| `tools/` | `Sync-Core.ps1`, `Build-SettingsDoc.ps1`, `Set-AzureDevOpsVersion.ps1`. |
+| `tests/` | Pester tests and the stand-in module. |
+| `.github/workflows/` | CI, the release pipeline and one publish pipeline per registry. |
+| `.gitlab-ci.yml` | Pipeline of the GitLab project that hosts the component. |
+
+## Tests
+
+```powershell
+Invoke-Pester -Path tests
+```
+
+- `tests/Step.tests.ps1` runs the step against a stand-in `Dsc.PipelineRunner` module that records
+  the arguments it received, so it needs no network.
+- `tests/Integrations.tests.ps1` checks that every integration offers every setting with the same
+  default, that secrets are never plain settings, and that generated files are current.
+
+CI also runs the GitHub Action and the Azure DevOps task entry point for real, packages the
+extension, and runs the action once against the real module from the PowerShell Gallery.
+
+## Adding or changing a setting
+
+1. Edit `core/settings.json`.
+2. Use it in `core/Invoke-DscPipelineRunnerStep.ps1`.
+3. Add it to `action.yml`, `azure-devops/DscPipelineRunnerTask/task.json` and `index.js`,
+   `templates/dsc-pipeline-runner.yml`, `circleci/orb.yml` (command, job and pass-through) and
+   `jenkins/vars/dscPipelineRunner.groovy`.
+4. Run `tools/Sync-Core.ps1` and `tools/Build-SettingsDoc.ps1`.
+5. Run the tests; they name any integration you missed.

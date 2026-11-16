@@ -1,0 +1,19 @@
+# Example for Bitbucket Pipelines (and the pattern for any runner without a packaged integration):
+# fetch this repository at a pinned commit, set DSCPR_* variables, run the step script.
+# Secrets: define DSCPR_SOURCE_TOKEN / DSCPR_AZURE_DEVOPS_TOKEN as secured repository variables.
+image: mcr.microsoft.com/dotnet/sdk:8.0     # has PowerShell 7 and git
+
+pipelines:
+  default:
+    - step:
+        name: Dsc.PipelineRunner
+        script:
+          - git clone https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions .dscpr
+          - git -C .dscpr checkout --detach <full commit SHA of the release you reviewed>
+          - export DSCPR_CONFIGURATION_PATH=config
+          - export DSCPR_MODE=Test
+          - export DSCPR_ENGINE=DscV3
+          - export DSCPR_MODULE_VERSION=1.2.1
+          - pwsh -NoLogo -NoProfile -NonInteractive -File .dscpr/core/Invoke-DscPipelineRunnerStep.ps1
+        artifacts:
+          - dsc-reports/**

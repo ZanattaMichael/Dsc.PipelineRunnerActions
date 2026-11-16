@@ -1,0 +1,170 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Pester
+        shell: pwsh
+        run: |
+          # Pester 5 ships on GitHub-hosted runners.
+          Import-Module Pester -MinimumVersion 5.3.0
+          $configuration = New-PesterConfiguration
+          $configuration.Run.Path = 'tests'
+          $configuration.Run.Exit = $true
+          $configuration.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $configuration
+
+  github-action:
+    name: GitHub Action (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the stand-in module
+        shell: pwsh
+        run: |
+          # The action itself is under test, not Dsc.PipelineRunner: a stand-in module makes the
+          # result predictable. It records the arguments the action passed.
+          $modules = Join-Path $env:GITHUB_WORKSPACE 'tests/fixtures/modules'
+          "PSModulePath=$modules$([IO.Path]::PathSeparator)$env:PSModulePath" >> $env:GITHUB_ENV
+          "DSCPR_TEST_CALL_FILE=$(Join-Path $env:RUNNER_TEMP 'call.json')" >> $env:GITHUB_ENV
+      - name: Run the action
+        id: dsc
+        uses: ./
+        with:
+          configuration-path: tests/fixtures/config
+          mode: Set
+          skip-module-install: 'true'
+      - name: Check outputs and arguments
+        shell: pwsh
+        env:
+          STATUS: ${{ steps.dsc.outputs.status }}
+          PASS_COUNT: ${{ steps.dsc.outputs.pass-count }}
+          REPORT_PATH: ${{ steps.dsc.outputs.report-path }}
+        run: |
+          if ($env:STATUS -ne 'Completed') { throw "status output is '$env:STATUS'" }
+          if ($env:PASS_COUNT -ne '3') { throw "pass-count output is '$env:PASS_COUNT'" }
+          if (-not (Test-Path (Join-Path $env:REPORT_PATH 'result.json'))) { throw 'result.json is missing' }
+          $call = Get-Content $env:DSCPR_TEST_CALL_FILE -Raw | ConvertFrom-Json
+          if ($call.Mode -ne 'Set') { throw "the runner was called with Mode '$($call.Mode)'" }
+      - name: Invalid settings must fail the step
+        id: invalid
+        continue-on-error: true
+        uses: ./
+        with:
+          mode: Apply
+      - name: Check the failure
+        shell: pwsh
+        env:
+          OUTCOME: ${{ steps.invalid.outcome }}
+        run: if ($env:OUTCOME -ne 'failure') { throw "invalid settings gave outcome '$env:OUTCOME'" }
+
+  real-module:
+    # The one job that uses the real Dsc.PipelineRunner from the PowerShell Gallery.
+    name: Real module (install and run)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: dsc
+        uses: ./
+        with:
+          configuration-path: tests/fixtures/real-config
+          mode: Test
+          module-version: 1.2.1
+          resource-modules: PSDscResources@2.12.0.0
+          fail-on-error: 'false'
+      - shell: pwsh
+        env:
+          STATUS: ${{ steps.dsc.outputs.status }}
+          TOTAL: ${{ steps.dsc.outputs.total-resources }}
+          VERSION: ${{ steps.dsc.outputs.module-version }}
+        run: |
+          "status=$env:STATUS total=$env:TOTAL version=$env:VERSION"
+          if ($env:VERSION -ne '1.2.1') { throw "module-version output is '$env:VERSION'" }
+          if ($env:STATUS -notin 'Completed', 'Failed') { throw "status output is '$env:STATUS'" }
+          if ([int]$env:TOTAL -lt 1) { throw 'no resource was evaluated' }
+
+  azure-devops-task:
+    name: Azure DevOps task and extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run the task entry point
+        shell: pwsh
+        run: |
+          ./tools/Sync-Core.ps1 -AzureDevOps
+          $env:PSModulePath = (Join-Path $PWD 'tests/fixtures/modules') + [IO.Path]::PathSeparator + $env:PSModulePath
+          $env:DSCPR_TEST_CALL_FILE = Join-Path $env:RUNNER_TEMP 'call.json'
+          # The agent passes inputs as INPUT_<NAME>.
+          $env:INPUT_CONFIGURATIONPATH = 'tests/fixtures/config'
+          $env:INPUT_SKIPMODULEINSTALL = 'true'
+          $log = node azure-devops/DscPipelineRunnerTask/index.js
+          $log
+          if ($LASTEXITCODE -ne 0) { throw "the task exited $LASTEXITCODE" }
+          if (-not ($log -match '##vso\[task\.setvariable variable=status;isOutput=true\]Completed')) { throw 'the status output variable was not set' }
+
+          $env:INPUT_SOURCETOKEN = '$(NotDefined)'
+          node azure-devops/DscPipelineRunnerTask/index.js
+          if ($LASTEXITCODE -eq 0) { throw 'an undefined secret variable was accepted' }
+          exit 0
+      - name: Package the extension
+        shell: pwsh
+        run: |
+          ./tools/Set-AzureDevOpsVersion.ps1 -Version 0.0.1
+          npx --yes tfx-cli@0 extension create --root azure-devops --manifest-globs vss-extension.json --output-path dist
+          if ($LASTEXITCODE -ne 0) { throw 'tfx could not package the extension' }
+          Get-ChildItem dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: azure-devops-extension-ci
+          path: dist/*.vsix
+
+  static-checks:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: YAML and JSON parse
+        run: |
+          python3 - <<'PY'
+          import glob, json, sys, yaml
+          for path in ['action.yml', 'circleci/orb.yml', 'templates/dsc-pipeline-runner.yml', '.gitlab-ci.yml'] + glob.glob('examples/**/*.yml', recursive=True) + glob.glob('.github/workflows/*.yml'):
+              list(yaml.safe_load_all(open(path)))
+              print('ok', path)
+          for path in ['core/settings.json', 'azure-devops/vss-extension.json', 'azure-devops/DscPipelineRunnerTask/task.json']:
+              json.load(open(path))
+              print('ok', path)
+          PY
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          # PSScriptAnalyzer ships on GitHub-hosted runners.
+          $findings = Invoke-ScriptAnalyzer -Path core, tools -Recurse -Severity Error, Warning -ExcludeRule PSAvoidUsingWriteHost, PSAvoidUsingConvertToSecureStringWithPlainText
+          $findings | Format-Table -AutoSize
+          if ($findings) { throw "$(@($findings).Count) PSScriptAnalyzer finding(s)" }

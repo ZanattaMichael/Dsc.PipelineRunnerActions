@@ -1,0 +1,152 @@
+name: Dsc.PipelineRunner
+description: Test, apply or dry-run a Datum-driven Desired State Configuration, with reports and a pass/fail gate.
+author: Michael Zanatta
+branding:
+  icon: check-square
+  color: blue
+
+# Requirements (the step checks these and lists everything that is missing in one pass):
+#   - PowerShell 7 (pwsh) on the runner. GitHub-hosted runners have it.
+#   - actions/checkout before this step when configuration-path is used.
+#   - git when configuration-repository-url is used.
+#   - The dsc command-line engine on PATH when engine is DscV3.
+# Full list: docs/requirements.md. Every input: docs/settings.md.
+
+inputs:
+  configuration-path:
+    description: 'Directory that holds the Datum configuration (the folder containing Datum.yml), relative to the working directory. Set this or configuration-repository-url, not both.'
+    required: false
+    default: ''
+  configuration-repository-url:
+    description: 'HTTPS or SSH URL of a Git repository that holds the Datum configuration. The runner clones it. Set this or configuration-path, not both. Requires git on the agent.'
+    required: false
+    default: ''
+  configuration-revision:
+    description: 'Branch, tag or commit to check out when configuration-repository-url is set. A full 40-character commit SHA is verified after the clone and is the recommended value.'
+    required: false
+    default: ''
+  source-token:
+    description: 'Token used to clone configuration-repository-url over HTTPS when the repository is private. Needs read access to that repository only. Supply it from the platform''s secret store. Pass a secret, for example ${{ secrets.NAME }}.'
+    required: false
+    default: ''
+  mode:
+    description: 'Test reports drift and changes nothing. Set applies the configuration. DryRun validates the configuration without calling an engine, connecting to a target or reading a credential.'
+    required: false
+    default: 'Test'
+  engine:
+    description: 'DscV2 uses Invoke-DscResource (PowerShell resources; most are Windows-only). DscV3 uses the dsc command-line engine, which must already be installed and on PATH.'
+    required: false
+    default: 'DscV2'
+  engine-version:
+    description: 'Optional engine version passed to the runner (-EngineVersion). Leave empty for the engine''s default.'
+    required: false
+    default: ''
+  fail-on-error:
+    description: 'Fail the step when the run status is Failed or Aborted. In Test mode drift counts as a failure, so this makes a Test run a compliance gate.'
+    required: false
+    default: 'true'
+  report-path:
+    description: 'Directory for the reports (CSV and JSON per node, report.json, and this integration''s result.json and outputs.env). Created if missing. Publish it as a build artifact.'
+    required: false
+    default: 'dsc-reports'
+  connect:
+    description: 'AzureDevOps opens an Azure DevOps session before the run, for configurations that manage Azure DevOps with AzureDevOpsDscNative. That module must be installed (list it in resource-modules).'
+    required: false
+    default: 'None'
+  azure-devops-organization:
+    description: 'Azure DevOps organization name. Required when connect is AzureDevOps.'
+    required: false
+    default: ''
+  azure-devops-authentication:
+    description: 'How to authenticate to Azure DevOps. PAT needs azure-devops-token. ManagedIdentity needs an agent that runs with an Azure managed identity.'
+    required: false
+    default: 'PAT'
+  azure-devops-token:
+    description: 'Azure DevOps personal access token (20 to 120 letters and digits). Required when connect is AzureDevOps, authentication is PAT and mode is not DryRun. Supply it from the platform''s secret store. Pass a secret, for example ${{ secrets.NAME }}.'
+    required: false
+    default: ''
+  module-version:
+    description: 'Exact Dsc.PipelineRunner version to install, for example 1.2.1. Pinning is recommended. Empty uses a version already on the agent, otherwise installs the newest stable release.'
+    required: false
+    default: ''
+  allow-prerelease:
+    description: 'Allow a preview version of Dsc.PipelineRunner (needed when module-version names one, for example 1.3.0-preview1).'
+    required: false
+    default: 'false'
+  module-repository:
+    description: 'Registered PowerShell repository to install modules from. Use this for an internal feed; the repository must already be registered on the agent.'
+    required: false
+    default: 'PSGallery'
+  resource-modules:
+    description: 'DSC resource modules the configuration uses, one per line or comma-separated, as Name or Name@Version (for example PSDscResources@2.12.0.0). Pinning versions is recommended.'
+    required: false
+    default: ''
+  skip-module-install:
+    description: 'Install nothing. Use on agents or container images where Dsc.PipelineRunner and the resource modules are already present, or where the agent has no access to a module repository.'
+    required: false
+    default: 'false'
+  keep-temporary-directory:
+    description: 'Keep the clone and the compiled per-node YAML on disk after the run, to debug a compile failure.'
+    required: false
+    default: 'false'
+  verbose:
+    description: 'Write the runner''s verbose log.'
+    required: false
+    default: 'false'
+
+outputs:
+  status:
+    description: 'Overall run status: Completed, PartialSuccess, Failed or Aborted.'
+    value: ${{ steps.run.outputs.status }}
+  total-resources:
+    description: 'Number of resources evaluated.'
+    value: ${{ steps.run.outputs.total-resources }}
+  pass-count:
+    description: 'Number of resources that passed.'
+    value: ${{ steps.run.outputs.pass-count }}
+  fail-count:
+    description: 'Number of resources that failed (in Test mode this includes drift).'
+    value: ${{ steps.run.outputs.fail-count }}
+  skip-count:
+    description: 'Number of resources skipped.'
+    value: ${{ steps.run.outputs.skip-count }}
+  report-path:
+    description: 'Absolute path of the report directory.'
+    value: ${{ steps.run.outputs.report-path }}
+  module-version:
+    description: 'The Dsc.PipelineRunner version that ran.'
+    value: ${{ steps.run.outputs.module-version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Run Dsc.PipelineRunner
+      id: run
+      shell: pwsh
+      # Inputs reach the script as environment variables, never by being written into the
+      # script text, so an input value cannot inject a command.
+      env:
+        DSCPR_PLATFORM: github
+        DSCPR_CONFIGURATION_PATH: ${{ inputs.configuration-path }}
+        DSCPR_CONFIGURATION_REPOSITORY_URL: ${{ inputs.configuration-repository-url }}
+        DSCPR_CONFIGURATION_REVISION: ${{ inputs.configuration-revision }}
+        DSCPR_SOURCE_TOKEN: ${{ inputs.source-token }}
+        DSCPR_MODE: ${{ inputs.mode }}
+        DSCPR_ENGINE: ${{ inputs.engine }}
+        DSCPR_ENGINE_VERSION: ${{ inputs.engine-version }}
+        DSCPR_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        DSCPR_REPORT_PATH: ${{ inputs.report-path }}
+        DSCPR_CONNECT: ${{ inputs.connect }}
+        DSCPR_AZURE_DEVOPS_ORGANIZATION: ${{ inputs.azure-devops-organization }}
+        DSCPR_AZURE_DEVOPS_AUTHENTICATION: ${{ inputs.azure-devops-authentication }}
+        DSCPR_AZURE_DEVOPS_TOKEN: ${{ inputs.azure-devops-token }}
+        DSCPR_MODULE_VERSION: ${{ inputs.module-version }}
+        DSCPR_ALLOW_PRERELEASE: ${{ inputs.allow-prerelease }}
+        DSCPR_MODULE_REPOSITORY: ${{ inputs.module-repository }}
+        DSCPR_RESOURCE_MODULES: ${{ inputs.resource-modules }}
+        DSCPR_SKIP_MODULE_INSTALL: ${{ inputs.skip-module-install }}
+        DSCPR_KEEP_TEMPORARY_DIRECTORY: ${{ inputs.keep-temporary-directory }}
+        DSCPR_VERBOSE: ${{ inputs.verbose }}
+      run: |
+        & (Join-Path $env:GITHUB_ACTION_PATH 'core/Invoke-DscPipelineRunnerStep.ps1')
+        exit $LASTEXITCODE

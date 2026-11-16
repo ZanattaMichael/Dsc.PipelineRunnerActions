@@ -1,0 +1,6 @@
+dist/
+dsc-reports/
+*.vsix
+node_modules/
+# Copied in when the Azure DevOps extension is packaged (tools/Sync-Core.ps1 -AzureDevOps).
+azure-devops/DscPipelineRunnerTask/core/

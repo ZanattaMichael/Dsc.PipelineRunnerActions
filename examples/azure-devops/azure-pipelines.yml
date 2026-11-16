@@ -1,0 +1,45 @@
+# Example: validate on pull requests, apply on main. Requires the Dsc.PipelineRunner extension
+# to be installed in the Azure DevOps organization.
+trigger:
+  branches:
+    include: [main]
+
+pool:
+  vmImage: windows-latest
+
+stages:
+  - stage: Validate
+    condition: eq(variables['Build.Reason'], 'PullRequest')
+    jobs:
+      - job: DryRun
+        steps:
+          - checkout: self
+          - task: DscPipelineRunner@1
+            inputs:
+              configurationPath: config
+              mode: DryRun
+              moduleVersion: 1.2.1   # DryRun needs a release newer than 1.2.1; pin the version you use
+
+  - stage: Apply
+    condition: ne(variables['Build.Reason'], 'PullRequest')
+    jobs:
+      - deployment: Set
+        environment: production        # add approvals and checks to this environment to gate Set
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: DscPipelineRunner@1
+                  name: dsc
+                  inputs:
+                    configurationPath: config
+                    mode: Set
+                    moduleVersion: 1.2.1
+                    resourceModules: |
+                      PSDscResources@2.12.0.0
+                - publish: $(dsc.report_path)
+                  artifact: dsc-reports
+                  condition: always()
+                - pwsh: Write-Host "Status $(dsc.status), $(dsc.fail_count) failed"
+                  condition: always()

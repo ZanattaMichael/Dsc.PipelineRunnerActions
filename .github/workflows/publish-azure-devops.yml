@@ -1,0 +1,80 @@
+# Deployment pipeline: Azure DevOps extension -> Visual Studio Marketplace.
+#
+# Needs (docs/publishing.md):
+#   variable AZURE_DEVOPS_PUBLISHER            your Marketplace publisher ID
+#   secret   AZURE_DEVOPS_MARKETPLACE_TOKEN    Azure DevOps PAT, scope Marketplace (Publish), all accessible organizations
+# Optional:
+#   variable AZURE_DEVOPS_EXTENSION_PUBLIC     'true' to list the extension publicly (default: private)
+#   variable AZURE_DEVOPS_SHARE_WITH           organizations to share a private extension with, space-separated
+#
+# The .vsix is always built and attached to the run. It is published only when both the publisher
+# and the token are configured.
+name: Publish Azure DevOps extension
+
+on:
+  workflow_call:
+    inputs:
+      version: { required: true, type: string }
+      ref: { required: true, type: string }
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, for example 1.2.0. Must be higher than the published one.'
+        required: true
+        type: string
+      ref:
+        description: 'Tag or commit to build from, for example v1.2.0.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Package and publish
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+      PUBLISHER: ${{ vars.AZURE_DEVOPS_PUBLISHER }}
+      EXTENSION_PUBLIC: ${{ vars.AZURE_DEVOPS_EXTENSION_PUBLIC }}
+      SHARE_WITH: ${{ vars.AZURE_DEVOPS_SHARE_WITH }}
+      HAS_TOKEN: ${{ secrets.AZURE_DEVOPS_MARKETPLACE_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Stamp the version and copy the shared script into the task
+        shell: pwsh
+        run: |
+          $arguments = @{ Version = $env:VERSION; Public = ($env:EXTENSION_PUBLIC -eq 'true') }
+          if ($env:PUBLISHER) { $arguments.Publisher = $env:PUBLISHER }
+          ./tools/Set-AzureDevOpsVersion.ps1 @arguments
+          ./tools/Sync-Core.ps1 -AzureDevOps
+      - name: Package
+        run: npx --yes tfx-cli@0 extension create --root azure-devops --manifest-globs vss-extension.json --output-path dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: azure-devops-extension-${{ inputs.version }}
+          path: dist/*.vsix
+          if-no-files-found: error
+      - name: Publish to the Visual Studio Marketplace
+        if: env.PUBLISHER != '' && env.HAS_TOKEN == 'true'
+        env:
+          AZURE_DEVOPS_EXT_PAT: ${{ secrets.AZURE_DEVOPS_MARKETPLACE_TOKEN }}
+        run: |
+          set -euo pipefail
+          vsix=$(ls dist/*.vsix | head -n 1)
+          set -- extension publish --vsix "$vsix" --auth-type pat --token "$AZURE_DEVOPS_EXT_PAT" --no-prompt
+          if [ -n "$SHARE_WITH" ] && [ "$EXTENSION_PUBLIC" != "true" ]; then
+            # shellcheck disable=SC2086
+            set -- "$@" --share-with $SHARE_WITH
+          fi
+          npx --yes tfx-cli@0 "$@"
+          echo "::notice::Published $PUBLISHER.dsc-pipeline-runner $VERSION to the Visual Studio Marketplace."
+      - name: Not configured
+        if: env.PUBLISHER == '' || env.HAS_TOKEN != 'true'
+        run: echo "::notice::Azure DevOps publishing is not configured (variable AZURE_DEVOPS_PUBLISHER and secret AZURE_DEVOPS_MARKETPLACE_TOKEN). The .vsix was built and attached to this run; see docs/publishing.md."

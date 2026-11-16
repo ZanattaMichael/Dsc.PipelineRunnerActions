@@ -1,0 +1,62 @@
+# Deployment pipeline: GitLab CI/CD component -> CI/CD Catalog.
+#
+# GitLab reads a component from a GitLab project, so the release is pushed to one. That project's
+# own pipeline (.gitlab-ci.yml in this repository) then creates the release that publishes the
+# component to the CI/CD Catalog.
+#
+# Needs (docs/publishing.md):
+#   variable GITLAB_PROJECT_URL    https://gitlab.com/<group>/dsc-pipelinerunner-actions.git
+#   secret   GITLAB_PUSH_TOKEN     project access token, role Maintainer, scope write_repository
+name: Publish GitLab component
+
+on:
+  workflow_call:
+    inputs:
+      version: { required: true, type: string }
+      ref: { required: true, type: string }
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, for example 1.2.0.'
+        required: true
+        type: string
+      ref:
+        description: 'Tag or commit to publish, for example v1.2.0.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Push the release to GitLab
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+      PROJECT_URL: ${{ vars.GITLAB_PROJECT_URL }}
+      HAS_TOKEN: ${{ secrets.GITLAB_PUSH_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Push the commit and the version tag
+        if: env.PROJECT_URL != '' && env.HAS_TOKEN == 'true'
+        env:
+          GITLAB_PUSH_TOKEN: ${{ secrets.GITLAB_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          case "$PROJECT_URL" in https://*) ;; *) echo "::error::GITLAB_PROJECT_URL must be an https:// URL."; exit 1 ;; esac
+          # The token goes in a header, not in the URL, so it cannot end up in a log or in .git/config.
+          header="Authorization: Basic $(printf 'oauth2:%s' "$GITLAB_PUSH_TOKEN" | base64 -w0)"
+          # The CI/CD Catalog wants a plain semantic version as the tag (1.2.0), so the GitLab tag
+          # has no leading v. It points at the same commit as v1.2.0 here.
+          git tag -f "$VERSION" HEAD
+          git -c "http.extraHeader=$header" push "$PROJECT_URL" "HEAD:refs/heads/main"
+          git -c "http.extraHeader=$header" push "$PROJECT_URL" "refs/tags/$VERSION"
+          echo "::notice::Pushed $VERSION to $PROJECT_URL. Its pipeline publishes the component to the CI/CD Catalog."
+      - name: Not configured
+        if: env.PROJECT_URL == '' || env.HAS_TOKEN != 'true'
+        run: echo "::notice::GitLab publishing is not configured (variable GITLAB_PROJECT_URL and secret GITLAB_PUSH_TOKEN); see docs/publishing.md."

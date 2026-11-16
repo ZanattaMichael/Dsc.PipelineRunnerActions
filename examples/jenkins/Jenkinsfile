@@ -1,0 +1,42 @@
+// Example: report drift on every build, apply on main.
+// 'dsc-pipeline-runner' is the name the shared library was given in Jenkins (see docs/jenkins.md).
+@Library('dsc-pipeline-runner@v1') _
+
+pipeline {
+    agent { label 'windows && pwsh' }
+
+    stages {
+        stage('Drift') {
+            steps {
+                script {
+                    def result = dscPipelineRunner(
+                        configurationPath: 'config',
+                        mode: 'Test',
+                        failOnError: false,
+                        moduleVersion: '1.2.1',
+                        resourceModules: 'PSDscResources@2.12.0.0'
+                    )
+                    echo "Drift check: ${result.status}, ${result.failCount} resource(s) not in the desired state"
+                }
+            }
+        }
+        stage('Apply') {
+            when { branch 'main' }
+            steps {
+                script {
+                    dscPipelineRunner(
+                        configurationRepositoryUrl: 'https://git.example.com/platform/config.git',
+                        configurationRevision: '3f1c9a0e5b7d2148ab6c0f39e7d5412ca8b09e6f',
+                        sourceTokenCredentialsId: 'config-repo-token',   // Secret text credential
+                        mode: 'Set',
+                        moduleVersion: '1.2.1',
+                        resourceModules: 'PSDscResources@2.12.0.0'
+                    )
+                }
+            }
+        }
+    }
+    post {
+        always { archiveArtifacts artifacts: 'dsc-reports/**', allowEmptyArchive: true }
+    }
+}

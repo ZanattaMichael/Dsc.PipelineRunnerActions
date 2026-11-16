@@ -1,0 +1,71 @@
+# Deployment pipeline: CircleCI orb -> orb registry.
+#
+# Needs (docs/publishing.md):
+#   variable CIRCLECI_NAMESPACE    the namespace the orb is published under
+#   secret   CIRCLECI_TOKEN        CircleCI personal API token of a user who may publish in that namespace
+#
+# The orb fetches the shared step script from this repository. The placeholder
+# __DSCPR_ACTIONS_REF__ is replaced here with the commit being released, so a published orb version
+# always runs exactly the script it was released with.
+name: Publish CircleCI orb
+
+on:
+  workflow_call:
+    inputs:
+      version: { required: true, type: string }
+      ref: { required: true, type: string }
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, for example 1.2.0.'
+        required: true
+        type: string
+      ref:
+        description: 'Tag or commit to publish, for example v1.2.0.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Pin, validate and publish
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+      NAMESPACE: ${{ vars.CIRCLECI_NAMESPACE }}
+      HAS_TOKEN: ${{ secrets.CIRCLECI_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Pin the step script to this commit
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          mkdir -p dist
+          sed "s/__DSCPR_ACTIONS_REF__/$sha/g" circleci/orb.yml > dist/orb.yml
+          if grep -q '__DSCPR_ACTIONS_REF__' dist/orb.yml; then echo "::error::The placeholder was not replaced."; exit 1; fi
+          echo "Pinned to $sha"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: circleci-orb-${{ inputs.version }}
+          path: dist/orb.yml
+      - name: Validate and publish
+        if: env.NAMESPACE != '' && env.HAS_TOKEN == 'true'
+        env:
+          # The CLI reads CIRCLE_TOKEN; older versions read CIRCLECI_CLI_TOKEN.
+          CIRCLE_TOKEN: ${{ secrets.CIRCLECI_TOKEN }}
+          CIRCLECI_CLI_TOKEN: ${{ secrets.CIRCLECI_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/main/install.sh | DESTDIR="$HOME/bin" bash
+          export PATH="$HOME/bin:$PATH"
+          circleci version
+          circleci orb validate dist/orb.yml
+          circleci orb publish dist/orb.yml "$NAMESPACE/dsc-pipeline-runner@$VERSION"
+          echo "::notice::Published $NAMESPACE/dsc-pipeline-runner@$VERSION to the CircleCI orb registry."
+      - name: Not configured
+        if: env.NAMESPACE == '' || env.HAS_TOKEN != 'true'
+        run: echo "::notice::CircleCI publishing is not configured (variable CIRCLECI_NAMESPACE and secret CIRCLECI_TOKEN). The pinned orb was built and attached to this run; see docs/publishing.md."

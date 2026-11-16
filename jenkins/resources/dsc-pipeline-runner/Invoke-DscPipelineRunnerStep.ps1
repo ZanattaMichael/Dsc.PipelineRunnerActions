@@ -1,0 +1,519 @@
+#requires -Version 7.0
+<#
+.SYNOPSIS
+Runs Dsc.PipelineRunner as one step of a CI/CD pipeline. Shared by every integration in this
+repository (GitHub Action, Azure DevOps task, GitLab component, CircleCI orb, Jenkins step).
+
+.DESCRIPTION
+Each integration is a thin wrapper that maps its platform's inputs onto DSCPR_* environment
+variables and then runs this script. Doing the work in one place keeps the integrations
+identical in behaviour.
+
+The script, in order:
+
+  1. Reads the settings (core/settings.json lists them) from DSCPR_* environment variables.
+  2. Validates them and checks what the agent needs (PowerShell 7, git, the dsc engine ...).
+     EVERY problem is reported in one pass, so a first run shows the whole list of what is
+     missing rather than one item at a time.
+  3. Prints the requirements and the effective settings. Secrets are shown as set / not set.
+  4. Installs Dsc.PipelineRunner and the resource modules (unless told not to).
+  5. Runs Invoke-DscRunner.
+  6. Writes result.json and outputs.env to the report directory, publishes the outputs in the
+     platform's own format, and exits non-zero when the run failed and fail-on-error is true.
+
+Settings are read from the environment, never from the command line: a value is then never
+interpolated into a script, and a secret is never visible in a process listing.
+
+.PARAMETER Setting
+Overrides for testing: a hashtable keyed by setting name (for example @{ mode = 'Set' }).
+A key here wins over the environment variable.
+
+.PARAMETER Platform
+github, azure-devops, gitlab, circleci, jenkins or generic. Decides how outputs, log groups and
+error annotations are written. Default: DSCPR_PLATFORM, otherwise detected from the environment.
+
+.PARAMETER PreflightOnly
+Validate, print the requirements and settings, and stop. Nothing is installed or run.
+
+.OUTPUTS
+[pscustomobject] The step result (also written to <report-path>/result.json).
+#>
+[CmdletBinding()]
+param(
+    [hashtable] $Setting = @{},
+
+    [ValidateSet('', 'github', 'azure-devops', 'gitlab', 'circleci', 'jenkins', 'generic')]
+    [string] $Platform = '',
+
+    [switch] $PreflightOnly,
+
+    # Return instead of calling exit (tests).
+    [switch] $NoExit
+)
+
+Set-StrictMode -Version 3.0
+$ErrorActionPreference = 'Stop'
+
+#region platform -------------------------------------------------------------------------------
+
+if (-not $Platform) { $Platform = [string]$env:DSCPR_PLATFORM }
+if (-not $Platform) {
+    $Platform = if ($env:GITHUB_ACTIONS -eq 'true') { 'github' }
+    elseif ($env:TF_BUILD) { 'azure-devops' }
+    elseif ($env:GITLAB_CI) { 'gitlab' }
+    elseif ($env:CIRCLECI) { 'circleci' }
+    elseif ($env:JENKINS_URL) { 'jenkins' }
+    else { 'generic' }
+}
+
+# A value written into a platform logging command must stay on one line and must not be able to
+# start a command of its own.
+function ConvertTo-SingleLine {
+    param([AllowNull()][string] $Text)
+    if ($null -eq $Text) { return '' }
+    return (($Text -replace '\r?\n', ' ') -replace '::', ': :' -replace '##vso\[', '## vso[' -replace '##\[', '## [')
+}
+
+function Write-StepGroup {
+    param([string] $Title, [switch] $End)
+    switch ($Platform) {
+        'github' { if ($End) { Write-Host '::endgroup::' } else { Write-Host "::group::$Title" } }
+        'azure-devops' { if ($End) { Write-Host '##[endgroup]' } else { Write-Host "##[group]$Title" } }
+        default { if (-not $End) { Write-Host ''; Write-Host "== $Title" } }
+    }
+}
+
+function Write-StepProblem {
+    param([string] $Message, [ValidateSet('error', 'warning')] [string] $Level = 'error')
+    $line = ConvertTo-SingleLine $Message
+    switch ($Platform) {
+        'github' { Write-Host "::${Level}::$line" }
+        'azure-devops' { Write-Host "##vso[task.logissue type=$Level]$line" }
+        default { Write-Host ("{0}: {1}" -f $Level.ToUpperInvariant(), $line) }
+    }
+}
+
+# A plain fixed-width table. Format-Table truncates to the console width, which on a CI agent is
+# often 80 columns or unknown; these tables must always be readable in full.
+function Write-StepTable {
+    param([object[]] $Row, [string[]] $Column)
+    $widths = foreach ($name in $Column) {
+        [Math]::Max($name.Length, [int](($Row | ForEach-Object { ([string]$_.$name).Length } | Measure-Object -Maximum).Maximum))
+    }
+    $format = (0..($Column.Count - 1) | ForEach-Object { "{$_,-$($widths[$_])}" }) -join '  '
+    $header = ($format -f $Column).TrimEnd(); Write-Host $header
+    Write-Host (($widths | ForEach-Object { '-' * $_ }) -join '  ')
+    foreach ($item in $Row) {
+        $values = foreach ($name in $Column) { [string]$item.$name }
+        $line = [string]::Format($format, [object[]]$values).TrimEnd(); Write-Host $line
+    }
+}
+
+function Exit-Step {
+    param([int] $Code, $Result)
+    if ($Platform -eq 'azure-devops' -and $Code -ne 0) { Write-Host '##vso[task.complete result=Failed;]' }
+    if ($NoExit) { return $Result }
+    exit $Code
+}
+
+#endregion
+
+#region settings -------------------------------------------------------------------------------
+
+$definitionPath = Join-Path $PSScriptRoot 'settings.json'
+$definition = Get-Content -LiteralPath $definitionPath -Raw | ConvertFrom-Json
+
+$settings = [ordered]@{}
+foreach ($item in $definition.settings) {
+    $value = $null
+    if ($Setting.ContainsKey($item.name)) { $value = [string]$Setting[$item.name] }
+    else { $value = [System.Environment]::GetEnvironmentVariable($item.env) }
+    if ([string]::IsNullOrWhiteSpace($value)) { $value = [string]$item.default }
+    $settings[$item.name] = $value.Trim()
+}
+
+$problems = [System.Collections.Generic.List[string]]::new()
+$warnings = [System.Collections.Generic.List[string]]::new()
+$requirements = [System.Collections.Generic.List[object]]::new()
+
+function Add-Requirement {
+    param([string] $Name, [bool] $Met, [string] $Detail)
+    $requirements.Add([pscustomobject]@{ Requirement = $Name; Status = if ($Met) { 'OK' } else { 'MISSING' }; Detail = $Detail })
+}
+
+# Fixed-value settings: accept any letter case, store the canonical spelling.
+foreach ($item in $definition.settings) {
+    if (-not $item.PSObject.Properties['values']) { continue }
+    $match = @($item.values | Where-Object { $_ -ieq $settings[$item.name] })
+    if ($match.Count -eq 1) { $settings[$item.name] = [string]$match[0] }
+    else { $problems.Add("'$($item.name)' is '$($settings[$item.name])'. Allowed values: $($item.values -join ', ').") }
+}
+
+function Test-Flag { param([string] $Name) return ($settings[$Name] -ieq 'true') }
+
+$mode = $settings['mode']
+$engine = $settings['engine']
+$connect = $settings['connect']
+$hasPath = -not [string]::IsNullOrWhiteSpace($settings['configuration-path'])
+$hasUrl = -not [string]::IsNullOrWhiteSpace($settings['configuration-repository-url'])
+
+#endregion
+
+#region preflight ------------------------------------------------------------------------------
+
+Add-Requirement 'PowerShell 7.0 or later' $true "PowerShell $($PSVersionTable.PSVersion) on $([System.Runtime.InteropServices.RuntimeInformation]::OSDescription)"
+
+# Configuration source: exactly one of the two.
+$configurationPath = $null
+if ($hasPath -and $hasUrl) {
+    $problems.Add("Both 'configuration-path' and 'configuration-repository-url' are set. Set one: a directory in the workspace, or a Git repository to clone.")
+}
+elseif (-not $hasPath -and -not $hasUrl) {
+    $problems.Add("No configuration source. Set 'configuration-path' (a directory in the workspace that contains Datum.yml) or 'configuration-repository-url' (a Git repository to clone).")
+}
+elseif ($hasPath) {
+    $configurationPath = [System.IO.Path]::GetFullPath($settings['configuration-path'], (Get-Location).Path)
+    $exists = Test-Path -LiteralPath $configurationPath -PathType Container
+    Add-Requirement 'Configuration directory exists' $exists $configurationPath
+    if (-not $exists) {
+        $problems.Add("'configuration-path' does not exist or is not a directory: $configurationPath. Has the repository been checked out before this step?")
+    }
+}
+else {
+    $git = Get-Command -Name git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    Add-Requirement 'git (to clone the configuration repository)' ($null -ne $git) $(if ($git) { $git.Source } else { 'not found on PATH' })
+    if (-not $git) { $problems.Add("'configuration-repository-url' is set but git is not installed on the agent (not found on PATH).") }
+    if ($settings['configuration-repository-url'] -match '^[a-z][a-z0-9+.-]*://[^/@]*:[^/@]*@') {
+        $problems.Add("'configuration-repository-url' contains a password or token. Remove it from the URL and supply it as 'source-token' from the secret store.")
+    }
+    if (-not $settings['configuration-revision']) {
+        $warnings.Add("'configuration-revision' is empty, so the default branch's newest commit is used. Pin a full commit SHA for a reproducible, verified run.")
+    }
+}
+if ($hasPath -and ($settings['configuration-revision'] -or $settings['source-token'])) {
+    $warnings.Add("'configuration-revision' and 'source-token' only apply with 'configuration-repository-url'; they are ignored for 'configuration-path'.")
+}
+
+# Engine.
+if ($engine -eq 'DscV3') {
+    $dsc = Get-Command -Name dsc -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    $needed = $mode -ne 'DryRun'
+    Add-Requirement 'dsc command-line engine (DSC v3)' (($null -ne $dsc) -or -not $needed) $(
+        if ($dsc) { $dsc.Source } elseif ($needed) { 'not found on PATH' } else { 'not found on PATH (not needed for DryRun)' })
+    if (-not $dsc -and $needed) {
+        $problems.Add("'engine' is DscV3 but the dsc command-line engine is not on PATH. Install it in an earlier step (see docs/requirements.md, 'DSC v3 engine'), or use a container image that includes it.")
+    }
+}
+elseif ($engine -eq 'DscV2' -and -not $IsWindows -and $mode -ne 'DryRun') {
+    $warnings.Add("'engine' is DscV2 on a non-Windows agent. Most DSC v2 resources only work on Windows; use a Windows agent, or the DscV3 engine.")
+}
+
+# Azure DevOps connection.
+if ($connect -eq 'AzureDevOps') {
+    if (-not $settings['azure-devops-organization']) {
+        $problems.Add("'connect' is AzureDevOps but 'azure-devops-organization' is empty.")
+    }
+    if ($mode -ne 'DryRun' -and $settings['azure-devops-authentication'] -eq 'PAT') {
+        $tokenSet = -not [string]::IsNullOrEmpty($settings['azure-devops-token'])
+        Add-Requirement 'Azure DevOps personal access token' $tokenSet $(if ($tokenSet) { 'set' } else { 'not set' })
+        if (-not $tokenSet) {
+            $problems.Add("'connect' is AzureDevOps with PAT authentication but 'azure-devops-token' is empty. Supply it from the secret store, or set 'azure-devops-authentication' to ManagedIdentity.")
+        }
+        elseif ($settings['azure-devops-token'] -notmatch '\A[A-Za-z0-9]{20,120}\z') {
+            $problems.Add("'azure-devops-token' is not in the expected format (20 to 120 letters and digits). Check the secret is defined and passed to this step.")
+        }
+    }
+}
+elseif ($settings['azure-devops-organization'] -or $settings['azure-devops-token']) {
+    $warnings.Add("Azure DevOps settings are set but 'connect' is None, so they are ignored. Set 'connect' to AzureDevOps to use them.")
+}
+
+# Installation.
+$skipInstall = Test-Flag 'skip-module-install'
+if ($settings['module-version'] -and $settings['module-version'] -notmatch '\A\d+\.\d+\.\d+(\.\d+)?(-[0-9A-Za-z]+)?\z') {
+    $problems.Add("'module-version' is '$($settings['module-version'])'. Use an exact version such as 1.2.1 (or 1.3.0-preview1 with allow-prerelease), or leave it empty.")
+}
+if ($settings['module-version'] -match '-' -and -not (Test-Flag 'allow-prerelease')) {
+    $problems.Add("'module-version' names a preview ($($settings['module-version'])) but 'allow-prerelease' is false.")
+}
+if ($settings['module-repository'] -notmatch '\A[A-Za-z0-9][A-Za-z0-9_.-]*\z') {
+    $problems.Add("'module-repository' is not a valid repository name.")
+}
+
+$resourceModules = [System.Collections.Generic.List[object]]::new()
+foreach ($entry in ($settings['resource-modules'] -split '[,\r\n]+' | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
+    if ($entry -match '\A(?<name>[A-Za-z0-9][A-Za-z0-9_.-]*)(@(?<version>\d+(\.\d+){1,3}(-[0-9A-Za-z]+)?))?\z') {
+        $resourceModules.Add([pscustomobject]@{ Name = $Matches['name']; Version = [string]$Matches['version'] })
+        if (-not $Matches['version']) { $warnings.Add("Resource module '$($Matches['name'])' has no version, so the newest is installed. Pin it as $($Matches['name'])@<version>.") }
+    }
+    else {
+        $problems.Add("'resource-modules' entry '$entry' is not valid. Use Name or Name@Version, for example PSDscResources@2.12.0.0.")
+    }
+}
+if (-not $settings['module-version'] -and -not $skipInstall) {
+    $warnings.Add("'module-version' is empty, so the newest stable Dsc.PipelineRunner is used unless one is already installed. Pin an exact version.")
+}
+
+# Report directory.
+$reportPath = [System.IO.Path]::GetFullPath($settings['report-path'], (Get-Location).Path)
+try {
+    $null = New-Item -ItemType Directory -Path $reportPath -Force
+    Add-Requirement 'Report directory is writable' $true $reportPath
+}
+catch {
+    Add-Requirement 'Report directory is writable' $false $reportPath
+    $problems.Add("'report-path' could not be created: $reportPath ($($_.Exception.Message))")
+}
+
+if ($mode -eq 'Set') {
+    $warnings.Add("'mode' is Set: this run changes the systems the configuration targets. The agent's identity needs the rights to make those changes.")
+}
+
+#endregion
+
+#region present requirements and settings ------------------------------------------------------
+
+Write-StepGroup 'Dsc.PipelineRunner: requirements'
+Write-Host ("Platform: {0}" -f $Platform)
+Write-StepTable -Row $requirements -Column 'Requirement', 'Status', 'Detail'
+Write-StepGroup -End
+
+Write-StepGroup 'Dsc.PipelineRunner: settings'
+$settingRows = foreach ($item in $definition.settings) {
+    $value = $settings[$item.name]
+    $shown = if ($item.secret) { if ([string]::IsNullOrEmpty($value)) { '(not set)' } else { '(set, hidden)' } }
+    elseif ([string]::IsNullOrEmpty($value)) { '(empty)' }
+    else { ($value -replace '\r?\n', ', ') }
+    $origin = if ($value -eq [string]$item.default) { 'default' } else { 'set' }
+    [pscustomobject]@{ Setting = $item.name; Value = $shown; Origin = $origin }
+}
+Write-StepTable -Row $settingRows -Column 'Setting', 'Value', 'Origin'
+Write-Host 'Every setting is described in docs/settings.md.'
+Write-StepGroup -End
+
+foreach ($warning in $warnings) { Write-StepProblem -Level warning -Message $warning }
+
+$result = [ordered]@{
+    Status         = 'NotRun'
+    Mode           = $mode
+    Engine         = $engine
+    TotalResources = 0
+    PassCount      = 0
+    FailCount      = 0
+    SkipCount      = 0
+    ReportPath     = $reportPath
+    ModuleVersion  = ''
+    Problems       = @($problems)
+    Warnings       = @($warnings)
+}
+
+if ($problems.Count -gt 0) {
+    Write-Host ''
+    Write-Host ("{0} problem(s) must be fixed before Dsc.PipelineRunner can run:" -f $problems.Count)
+    foreach ($problem in $problems) { Write-StepProblem -Message $problem }
+    $result.Status = 'InvalidSettings'
+    return (Exit-Step -Code 2 -Result ([pscustomobject]$result))
+}
+
+if ($PreflightOnly) {
+    Write-Host 'Preflight only: settings and requirements are valid. Nothing was installed or run.'
+    $result.Status = 'PreflightPassed'
+    return (Exit-Step -Code 0 -Result ([pscustomobject]$result))
+}
+
+#endregion
+
+#region install --------------------------------------------------------------------------------
+
+function Install-StepModule {
+    param([string] $Name, [string] $Version, [string] $Repository, [switch] $Prerelease)
+
+    $installed = @(Get-Module -ListAvailable -Name $Name)
+    if ($Version) {
+        $plain = ($Version -split '-')[0]
+        if ($installed | Where-Object { [string]$_.Version -eq $plain }) {
+            Write-Host "  $Name $Version is already installed."
+            return
+        }
+    }
+    elseif ($installed.Count -gt 0) {
+        Write-Host ("  {0} {1} is already installed (no version requested)." -f $Name, ($installed | Sort-Object Version -Descending | Select-Object -First 1).Version)
+        return
+    }
+
+    $usePsResourceGet = [bool](Get-Command -Name Install-PSResource -ErrorAction SilentlyContinue)
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            if ($usePsResourceGet) {
+                $arguments = @{ Name = $Name; Repository = $Repository; Scope = 'CurrentUser'; TrustRepository = $true; Prerelease = [bool]$Prerelease; ErrorAction = 'Stop' }
+                if ($Version) { $arguments.Version = "[$Version]" }
+                Install-PSResource @arguments
+            }
+            else {
+                $arguments = @{ Name = $Name; Repository = $Repository; Scope = 'CurrentUser'; Force = $true; AllowClobber = $true; SkipPublisherCheck = $true; AllowPrerelease = [bool]$Prerelease; ErrorAction = 'Stop' }
+                if ($Version) { $arguments.RequiredVersion = $Version }
+                Install-Module @arguments
+            }
+            Write-Host ("  Installed {0} {1} from {2}." -f $Name, $(if ($Version) { $Version } else { '(newest)' }), $Repository)
+            return
+        }
+        catch {
+            if ($attempt -eq 3) { throw "Could not install module '$Name' $Version from repository '$Repository' after 3 attempts: $($_.Exception.Message)" }
+            Write-Host "  Attempt $attempt to install $Name failed; retrying. ($($_.Exception.Message))"
+            Start-Sleep -Seconds (5 * $attempt)
+        }
+    }
+}
+
+try {
+    Write-StepGroup 'Dsc.PipelineRunner: modules'
+    if ($skipInstall) {
+        Write-Host "  'skip-module-install' is true: nothing is installed."
+    }
+    else {
+        Install-StepModule -Name 'Dsc.PipelineRunner' -Version $settings['module-version'] -Repository $settings['module-repository'] -Prerelease:(Test-Flag 'allow-prerelease')
+        foreach ($module in $resourceModules) {
+            Install-StepModule -Name $module.Name -Version $module.Version -Repository $settings['module-repository'] -Prerelease:($module.Version -match '-')
+        }
+    }
+
+    $missing = @()
+    if (-not (Get-Module -ListAvailable -Name 'Dsc.PipelineRunner')) { $missing += 'Dsc.PipelineRunner' }
+    foreach ($module in $resourceModules) { if (-not (Get-Module -ListAvailable -Name $module.Name)) { $missing += $module.Name } }
+    if ($connect -eq 'AzureDevOps' -and $mode -ne 'DryRun' -and -not (Get-Module -ListAvailable -Name 'AzureDevOpsDsc.Common')) {
+        $missing += "AzureDevOpsDsc.Common (needed for connect: AzureDevOps; add AzureDevOpsDscNative to 'resource-modules')"
+    }
+    if ($missing.Count -gt 0) {
+        throw "Required module(s) are not installed on the agent: $($missing -join '; '). Install them in the agent image, or set 'skip-module-install' to false."
+    }
+
+    $importArguments = @{ Name = 'Dsc.PipelineRunner'; ErrorAction = 'Stop'; PassThru = $true }
+    if ($settings['module-version']) { $importArguments.RequiredVersion = ($settings['module-version'] -split '-')[0] }
+    $runnerModule = Import-Module @importArguments
+    $result.ModuleVersion = [string]$runnerModule.Version
+    if ($runnerModule.PrivateData -and $runnerModule.PrivateData.PSData -and $runnerModule.PrivateData.PSData['Prerelease']) {
+        $result.ModuleVersion = '{0}-{1}' -f $runnerModule.Version, $runnerModule.PrivateData.PSData['Prerelease']
+    }
+    Write-Host "  Using Dsc.PipelineRunner $($result.ModuleVersion)."
+    Write-StepGroup -End
+
+    $runnerCommand = Get-Command -Name Invoke-DscRunner -Module Dsc.PipelineRunner
+    if ($mode -eq 'DryRun' -and 'DryRun' -notin $runnerCommand.Parameters['Mode'].Attributes.Where({ $_ -is [ValidateSet] }).ValidValues) {
+        throw "'mode' is DryRun, but Dsc.PipelineRunner $($result.ModuleVersion) does not support it. Set 'module-version' to a release that does."
+    }
+
+    #endregion
+
+    #region run --------------------------------------------------------------------------------
+
+    $runArguments = @{ Mode = $mode; Engine = $engine; ReportPath = $reportPath }
+    if ($settings['engine-version']) { $runArguments.EngineVersion = $settings['engine-version'] }
+    if (Test-Flag 'keep-temporary-directory') { $runArguments.KeepTemporaryDirectory = $true }
+    if (Test-Flag 'verbose') { $runArguments.Verbose = $true }
+
+    if ($hasPath) {
+        $runArguments.ConfigurationSourcePath = $configurationPath
+    }
+    else {
+        $sourceContext = @{ Url = $settings['configuration-repository-url'] }
+        if ($settings['source-token']) { $sourceContext.Token = ConvertTo-SecureString -String $settings['source-token'] -AsPlainText -Force }
+        $runArguments.Source = 'Git'
+        $runArguments.SourceContext = $sourceContext
+        if ($settings['configuration-revision']) { $runArguments.ConfigurationRevision = $settings['configuration-revision'] }
+    }
+
+    if ($connect -eq 'AzureDevOps') {
+        $connectContext = @{ OrganizationName = $settings['azure-devops-organization']; AuthenticationType = $settings['azure-devops-authentication'] }
+        if ($settings['azure-devops-authentication'] -eq 'PAT') { $connectContext.PATToken = $settings['azure-devops-token'] }
+        $runArguments.Connect = 'AzureDevOps'
+        $runArguments.ConnectContext = $connectContext
+    }
+
+    Write-StepGroup "Dsc.PipelineRunner: run ($mode, $engine)"
+    $summary = Invoke-DscRunner @runArguments -InformationAction Continue
+    Write-StepGroup -End
+
+    # The runner may emit more than the summary object; the summary is the last object with a Status.
+    $summary = @($summary | Where-Object { $null -ne $_ -and $_.PSObject.Properties['Status'] -and $_.PSObject.Properties['PassCount'] }) | Select-Object -Last 1
+    if ($null -eq $summary) { throw 'Invoke-DscRunner returned no run summary.' }
+
+    $result.Status = [string]$summary.Status
+    $result.TotalResources = [int]$summary.TotalResources
+    $result.PassCount = [int]$summary.PassCount
+    $result.FailCount = [int]$summary.FailCount
+    $result.SkipCount = [int]$summary.SkipCount
+}
+catch {
+    Write-StepGroup -End
+    $result.Status = 'Aborted'
+    $result.Problems = @($_.Exception.Message)
+    Write-StepProblem -Message "Dsc.PipelineRunner did not complete: $($_.Exception.Message)"
+}
+
+#endregion
+
+#region publish result -------------------------------------------------------------------------
+
+$resultObject = [pscustomobject]$result
+$resultObject | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $reportPath 'result.json') -Encoding utf8
+
+$outputs = [ordered]@{
+    'status'          = $result.Status
+    'total-resources' = $result.TotalResources
+    'pass-count'      = $result.PassCount
+    'fail-count'      = $result.FailCount
+    'skip-count'      = $result.SkipCount
+    'report-path'     = $result.ReportPath
+    'module-version'  = $result.ModuleVersion
+}
+
+# outputs.env: KEY=value, for platforms that load a dotenv file (GitLab reports:dotenv, Jenkins,
+# CircleCI) and for any script that wants the values.
+$envLines = foreach ($key in $outputs.Keys) { 'DSCPR_{0}={1}' -f ($key.ToUpperInvariant() -replace '-', '_'), (ConvertTo-SingleLine ([string]$outputs[$key])) }
+$envLines | Set-Content -LiteralPath (Join-Path $reportPath 'outputs.env') -Encoding utf8
+
+switch ($Platform) {
+    'github' {
+        if ($env:GITHUB_OUTPUT) {
+            foreach ($key in $outputs.Keys) { Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value ('{0}={1}' -f $key, (ConvertTo-SingleLine ([string]$outputs[$key]))) }
+        }
+        if ($env:GITHUB_STEP_SUMMARY) {
+            $lines = @(
+                "### Dsc.PipelineRunner: $($result.Status)"
+                ''
+                '| Mode | Engine | Resources | Passed | Failed | Skipped | Module |'
+                '| --- | --- | ---: | ---: | ---: | ---: | --- |'
+                ('| {0} | {1} | {2} | {3} | {4} | {5} | {6} |' -f $mode, $engine, $result.TotalResources, $result.PassCount, $result.FailCount, $result.SkipCount, $result.ModuleVersion)
+            )
+            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $lines
+        }
+    }
+    'azure-devops' {
+        foreach ($key in $outputs.Keys) {
+            $name = ($key -replace '-', '_')
+            Write-Host ('##vso[task.setvariable variable={0};isOutput=true]{1}' -f $name, (ConvertTo-SingleLine ([string]$outputs[$key])))
+        }
+    }
+}
+
+Write-Host ''
+Write-Host ("Dsc.PipelineRunner {0}: {1} resource(s), {2} passed, {3} failed, {4} skipped. Reports: {5}" -f `
+        $result.Status, $result.TotalResources, $result.PassCount, $result.FailCount, $result.SkipCount, $reportPath)
+
+$failed = $result.Status -in 'Failed', 'Aborted'
+$exitCode = 0
+if ($result.Status -eq 'Aborted' -and $result.TotalResources -eq 0) {
+    # The runner could not run at all (install, import or an exception): always a failure.
+    $exitCode = 1
+}
+elseif ($failed -and (Test-Flag 'fail-on-error')) {
+    Write-StepProblem -Message "The run status is $($result.Status) and 'fail-on-error' is true, so this step fails. See the reports in $reportPath."
+    $exitCode = 1
+}
+elseif ($failed) {
+    Write-StepProblem -Level warning -Message "The run status is $($result.Status). 'fail-on-error' is false, so this step does not fail."
+}
+
+return (Exit-Step -Code $exitCode -Result $resultObject)
+
+#endregion

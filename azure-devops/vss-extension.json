@@ -1,0 +1,72 @@
+{
+  "manifestVersion": 1,
+  "id": "dsc-pipeline-runner",
+  "name": "Dsc.PipelineRunner",
+  "version": "0.0.0",
+  "publisher": "ZanattaMichael",
+  "public": false,
+  "description": "Test, apply or dry-run a Datum-driven Desired State Configuration from Azure Pipelines, with reports and a pass/fail gate.",
+  "categories": [
+    "Azure Pipelines"
+  ],
+  "tags": [
+    "DSC",
+    "Desired State Configuration",
+    "PowerShell",
+    "Datum",
+    "Configuration as Code",
+    "Compliance"
+  ],
+  "targets": [
+    {
+      "id": "Microsoft.VisualStudio.Services"
+    }
+  ],
+  "icons": {
+    "default": "images/extension-icon.png"
+  },
+  "content": {
+    "details": {
+      "path": "overview.md"
+    },
+    "license": {
+      "path": "LICENSE"
+    }
+  },
+  "links": {
+    "getstarted": {
+      "uri": "https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions/blob/main/docs/azure-devops.md"
+    },
+    "support": {
+      "uri": "https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions/issues"
+    },
+    "license": {
+      "uri": "https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions/blob/main/LICENSE"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "uri": "https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions"
+  },
+  "files": [
+    {
+      "path": "DscPipelineRunnerTask"
+    },
+    {
+      "path": "images",
+      "addressable": true
+    }
+  ],
+  "contributions": [
+    {
+      "id": "dsc-pipeline-runner-task",
+      "type": "ms.vss-distributed-task.task",
+      "targets": [
+        "ms.vss-distributed-task.tasks"
+      ],
+      "properties": {
+        "name": "DscPipelineRunnerTask"
+      }
+    }
+  ]
+}

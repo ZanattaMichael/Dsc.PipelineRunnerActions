@@ -1,0 +1,66 @@
+# Example: validate on pull requests, report drift on a schedule, apply on main.
+# Copy to .github/workflows/ in the repository that holds your Datum configuration (in ./config).
+name: Desired State Configuration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    # A dry run needs no credentials and changes nothing, so it is safe on pull requests.
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ZanattaMichael/Dsc.PipelineRunnerActions@v1
+        with:
+          configuration-path: config
+          mode: DryRun
+          module-version: 1.2.1   # DryRun needs a release newer than 1.2.1; pin the version you use
+
+  drift:
+    # Test mode: drift fails the job, which makes this a compliance gate.
+    if: github.event_name == 'schedule'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: dsc
+        uses: ZanattaMichael/Dsc.PipelineRunnerActions@v1
+        with:
+          configuration-path: config
+          mode: Test
+          module-version: 1.2.1
+          resource-modules: |
+            PSDscResources@2.12.0.0
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsc-reports
+          path: ${{ steps.dsc.outputs.report-path }}
+
+  apply:
+    if: github.event_name == 'push'
+    runs-on: windows-latest
+    environment: production            # add required reviewers to this environment to gate Set
+    steps:
+      - uses: actions/checkout@v4
+      - id: dsc
+        uses: ZanattaMichael/Dsc.PipelineRunnerActions@v1
+        with:
+          configuration-path: config
+          mode: Set
+          module-version: 1.2.1
+          resource-modules: |
+            PSDscResources@2.12.0.0
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsc-reports
+          path: ${{ steps.dsc.outputs.report-path }}

@@ -1,0 +1,112 @@
+# Release pipeline: one manual run tags the release and deploys every integration.
+#
+#   tag            vX.Y.Z (annotated) and the moving major tag vX
+#   GitHub Action  a GitHub release for the tag (see docs/publishing.md for the Marketplace step)
+#   Azure DevOps   packages the extension and publishes it to the Visual Studio Marketplace
+#   GitLab         pushes the release to the GitLab project, whose pipeline publishes to the CI/CD Catalog
+#   CircleCI       publishes the orb to the orb registry
+#   Jenkins        nothing to publish: the shared library is loaded from this repository by tag
+#
+# A target that is not configured (its variable or secret is missing) is skipped with a notice;
+# it never fails the release. docs/publishing.md lists what each target needs.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, for example 1.2.0 (no leading v).'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag and GitHub release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.version.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check the request
+        id: version
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$VERSION' is not a version like 1.2.0."; exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Releases are cut from main. This run is on $GITHUB_REF."; exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Tag v$VERSION already exists."; exit 1
+          fi
+          # main must be green: the newest CI run for this commit has to have succeeded.
+          conclusion=$(gh run list --workflow ci.yml --commit "$GITHUB_SHA" --limit 1 --json conclusion --jq '.[0].conclusion // "none"')
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::CI for $GITHUB_SHA is '$conclusion', not 'success'. Release only a commit whose CI passed."; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+      - name: Create the tags
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          major="v${VERSION%%.*}"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          # The major tag (v1) moves to each release, so 'uses: ...@v1' follows compatible updates.
+          git tag -f -a "$major" -m "Latest $major release (v$VERSION)"
+          git push origin "v$VERSION"
+          git push --force origin "$major"
+      - name: Create the GitHub release
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$VERSION" --title "v$VERSION" --generate-notes --verify-tag
+          echo "::notice::GitHub release v$VERSION created. To list this version on GitHub Marketplace, edit the release and tick 'Publish this Action to the GitHub Marketplace' (docs/publishing.md)."
+
+  azure-devops:
+    name: Azure DevOps extension
+    needs: tag
+    uses: ./.github/workflows/publish-azure-devops.yml
+    with:
+      version: ${{ needs.tag.outputs.version }}
+      ref: v${{ needs.tag.outputs.version }}
+    secrets: inherit
+
+  gitlab:
+    name: GitLab component
+    needs: tag
+    uses: ./.github/workflows/publish-gitlab.yml
+    with:
+      version: ${{ needs.tag.outputs.version }}
+      ref: v${{ needs.tag.outputs.version }}
+    secrets: inherit
+
+  circleci:
+    name: CircleCI orb
+    needs: tag
+    uses: ./.github/workflows/publish-circleci.yml
+    with:
+      version: ${{ needs.tag.outputs.version }}
+      ref: v${{ needs.tag.outputs.version }}
+    secrets: inherit

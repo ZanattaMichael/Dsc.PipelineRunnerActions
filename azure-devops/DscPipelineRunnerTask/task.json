@@ -1,0 +1,300 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Microsoft/azure-pipelines-task-lib/master/tasks.schema.json",
+  "id": "6f0b2b0a-6c57-4b7e-9d0e-3a5d1c7e42b9",
+  "name": "DscPipelineRunner",
+  "friendlyName": "Dsc.PipelineRunner",
+  "description": "Test, apply or dry-run a Datum-driven Desired State Configuration with Dsc.PipelineRunner.",
+  "helpUrl": "https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions/blob/main/docs/azure-devops.md",
+  "helpMarkDown": "Requires PowerShell 7 (pwsh) on the agent. [Requirements](https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions/blob/main/docs/requirements.md) and [every setting](https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions/blob/main/docs/settings.md).",
+  "category": "Deploy",
+  "visibility": [
+    "Build",
+    "Release"
+  ],
+  "runsOn": [
+    "Agent",
+    "DeploymentGroup"
+  ],
+  "author": "Michael Zanatta",
+  "version": {
+    "Major": 0,
+    "Minor": 0,
+    "Patch": 0
+  },
+  "minimumAgentVersion": "3.232.1",
+  "demands": [],
+  "instanceNameFormat": "Dsc.PipelineRunner ($(mode))",
+  "groups": [
+    {
+      "name": "source",
+      "displayName": "Configuration source",
+      "isExpanded": true
+    },
+    {
+      "name": "run",
+      "displayName": "Run",
+      "isExpanded": true
+    },
+    {
+      "name": "azureDevOps",
+      "displayName": "Azure DevOps connection",
+      "isExpanded": false
+    },
+    {
+      "name": "installation",
+      "displayName": "Installation",
+      "isExpanded": false
+    },
+    {
+      "name": "diagnostics",
+      "displayName": "Diagnostics",
+      "isExpanded": false
+    }
+  ],
+  "inputs": [
+    {
+      "name": "configurationPath",
+      "type": "string",
+      "label": "Configuration path",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "source",
+      "helpMarkDown": "Directory that holds the Datum configuration (the folder containing Datum.yml), relative to the working directory. Set this or configuration-repository-url, not both."
+    },
+    {
+      "name": "configurationRepositoryUrl",
+      "type": "string",
+      "label": "Configuration repository URL",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "source",
+      "helpMarkDown": "HTTPS or SSH URL of a Git repository that holds the Datum configuration. The runner clones it. Set this or configuration-path, not both. Requires git on the agent."
+    },
+    {
+      "name": "configurationRevision",
+      "type": "string",
+      "label": "Configuration revision",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "source",
+      "helpMarkDown": "Branch, tag or commit to check out when configuration-repository-url is set. A full 40-character commit SHA is verified after the clone and is the recommended value.",
+      "visibleRule": "configurationRepositoryUrl != "
+    },
+    {
+      "name": "sourceToken",
+      "type": "string",
+      "label": "Source token",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "source",
+      "helpMarkDown": "Token used to clone configuration-repository-url over HTTPS when the repository is private. Needs read access to that repository only. Supply it from the platform's secret store. Use a secret pipeline variable, for example $(MySecret). A secret variable that is not defined arrives as the literal text $(MySecret); the task reports that.",
+      "visibleRule": "configurationRepositoryUrl != "
+    },
+    {
+      "name": "mode",
+      "type": "pickList",
+      "label": "Mode",
+      "defaultValue": "Test",
+      "required": false,
+      "groupName": "run",
+      "helpMarkDown": "Test reports drift and changes nothing. Set applies the configuration. DryRun validates the configuration without calling an engine, connecting to a target or reading a credential.",
+      "options": {
+        "Test": "Test",
+        "Set": "Set",
+        "DryRun": "DryRun"
+      }
+    },
+    {
+      "name": "engine",
+      "type": "pickList",
+      "label": "Engine",
+      "defaultValue": "DscV2",
+      "required": false,
+      "groupName": "run",
+      "helpMarkDown": "DscV2 uses Invoke-DscResource (PowerShell resources; most are Windows-only). DscV3 uses the dsc command-line engine, which must already be installed and on PATH.",
+      "options": {
+        "DscV2": "DscV2",
+        "DscV3": "DscV3"
+      }
+    },
+    {
+      "name": "engineVersion",
+      "type": "string",
+      "label": "Engine version",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "run",
+      "helpMarkDown": "Optional engine version passed to the runner (-EngineVersion). Leave empty for the engine's default."
+    },
+    {
+      "name": "failOnError",
+      "type": "boolean",
+      "label": "Fail on error",
+      "defaultValue": true,
+      "required": false,
+      "groupName": "run",
+      "helpMarkDown": "Fail the step when the run status is Failed or Aborted. In Test mode drift counts as a failure, so this makes a Test run a compliance gate."
+    },
+    {
+      "name": "reportPath",
+      "type": "string",
+      "label": "Report path",
+      "defaultValue": "dsc-reports",
+      "required": false,
+      "groupName": "run",
+      "helpMarkDown": "Directory for the reports (CSV and JSON per node, report.json, and this integration's result.json and outputs.env). Created if missing. Publish it as a build artifact."
+    },
+    {
+      "name": "connect",
+      "type": "pickList",
+      "label": "Connect",
+      "defaultValue": "None",
+      "required": false,
+      "groupName": "azureDevOps",
+      "helpMarkDown": "AzureDevOps opens an Azure DevOps session before the run, for configurations that manage Azure DevOps with AzureDevOpsDscNative. That module must be installed (list it in resource-modules).",
+      "options": {
+        "None": "None",
+        "AzureDevOps": "AzureDevOps"
+      }
+    },
+    {
+      "name": "azureDevopsOrganization",
+      "type": "string",
+      "label": "Azure DevOps organization",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "azureDevOps",
+      "helpMarkDown": "Azure DevOps organization name. Required when connect is AzureDevOps.",
+      "visibleRule": "connect = AzureDevOps"
+    },
+    {
+      "name": "azureDevopsAuthentication",
+      "type": "pickList",
+      "label": "Azure DevOps authentication",
+      "defaultValue": "PAT",
+      "required": false,
+      "groupName": "azureDevOps",
+      "helpMarkDown": "How to authenticate to Azure DevOps. PAT needs azure-devops-token. ManagedIdentity needs an agent that runs with an Azure managed identity.",
+      "options": {
+        "PAT": "PAT",
+        "ManagedIdentity": "ManagedIdentity"
+      },
+      "visibleRule": "connect = AzureDevOps"
+    },
+    {
+      "name": "azureDevopsToken",
+      "type": "string",
+      "label": "Azure DevOps token",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "azureDevOps",
+      "helpMarkDown": "Azure DevOps personal access token (20 to 120 letters and digits). Required when connect is AzureDevOps, authentication is PAT and mode is not DryRun. Supply it from the platform's secret store. Use a secret pipeline variable, for example $(MySecret). A secret variable that is not defined arrives as the literal text $(MySecret); the task reports that.",
+      "visibleRule": "connect = AzureDevOps && azureDevopsAuthentication = PAT"
+    },
+    {
+      "name": "moduleVersion",
+      "type": "string",
+      "label": "Dsc.PipelineRunner version",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "installation",
+      "helpMarkDown": "Exact Dsc.PipelineRunner version to install, for example 1.2.1. Pinning is recommended. Empty uses a version already on the agent, otherwise installs the newest stable release."
+    },
+    {
+      "name": "allowPrerelease",
+      "type": "boolean",
+      "label": "Allow prerelease",
+      "defaultValue": false,
+      "required": false,
+      "groupName": "installation",
+      "helpMarkDown": "Allow a preview version of Dsc.PipelineRunner (needed when module-version names one, for example 1.3.0-preview1)."
+    },
+    {
+      "name": "moduleRepository",
+      "type": "string",
+      "label": "Module repository",
+      "defaultValue": "PSGallery",
+      "required": false,
+      "groupName": "installation",
+      "helpMarkDown": "Registered PowerShell repository to install modules from. Use this for an internal feed; the repository must already be registered on the agent."
+    },
+    {
+      "name": "resourceModules",
+      "type": "multiLine",
+      "label": "Resource modules",
+      "defaultValue": "",
+      "required": false,
+      "groupName": "installation",
+      "helpMarkDown": "DSC resource modules the configuration uses, one per line or comma-separated, as Name or Name@Version (for example PSDscResources@2.12.0.0). Pinning versions is recommended.",
+      "properties": {
+        "rows": "3",
+        "resizable": "true"
+      }
+    },
+    {
+      "name": "skipModuleInstall",
+      "type": "boolean",
+      "label": "Skip module install",
+      "defaultValue": false,
+      "required": false,
+      "groupName": "installation",
+      "helpMarkDown": "Install nothing. Use on agents or container images where Dsc.PipelineRunner and the resource modules are already present, or where the agent has no access to a module repository."
+    },
+    {
+      "name": "keepTemporaryDirectory",
+      "type": "boolean",
+      "label": "Keep temporary directory",
+      "defaultValue": false,
+      "required": false,
+      "groupName": "diagnostics",
+      "helpMarkDown": "Keep the clone and the compiled per-node YAML on disk after the run, to debug a compile failure."
+    },
+    {
+      "name": "verbose",
+      "type": "boolean",
+      "label": "Verbose log",
+      "defaultValue": false,
+      "required": false,
+      "groupName": "diagnostics",
+      "helpMarkDown": "Write the runner's verbose log."
+    }
+  ],
+  "outputVariables": [
+    {
+      "name": "status",
+      "description": "Overall run status: Completed, PartialSuccess, Failed or Aborted."
+    },
+    {
+      "name": "total_resources",
+      "description": "Number of resources evaluated."
+    },
+    {
+      "name": "pass_count",
+      "description": "Number of resources that passed."
+    },
+    {
+      "name": "fail_count",
+      "description": "Number of resources that failed (in Test mode this includes drift)."
+    },
+    {
+      "name": "skip_count",
+      "description": "Number of resources skipped."
+    },
+    {
+      "name": "report_path",
+      "description": "Absolute path of the report directory."
+    },
+    {
+      "name": "module_version",
+      "description": "The Dsc.PipelineRunner version that ran."
+    }
+  ],
+  "execution": {
+    "Node20_1": {
+      "target": "index.js"
+    },
+    "Node24": {
+      "target": "index.js"
+    }
+  }
+}

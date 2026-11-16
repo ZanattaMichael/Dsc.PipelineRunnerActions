@@ -1,0 +1,32 @@
+# Example: validate on merge requests, apply on the default branch.
+# Replace <group> with the group that hosts the published component.
+# Secrets: define DSCPR_SOURCE_TOKEN / DSCPR_AZURE_DEVOPS_TOKEN as masked CI/CD variables if needed.
+stages: [validate, deploy]
+
+include:
+  - component: $CI_SERVER_FQDN/<group>/dsc-pipelinerunner-actions/dsc-pipeline-runner@1
+    inputs:
+      job_name: dsc-validate
+      stage: validate
+      configuration_path: config
+      mode: DryRun
+      module_version: 1.2.1   # DryRun needs a release newer than 1.2.1; pin the version you use
+  - component: $CI_SERVER_FQDN/<group>/dsc-pipelinerunner-actions/dsc-pipeline-runner@1
+    inputs:
+      job_name: dsc-apply
+      stage: deploy
+      configuration_path: config
+      mode: Set
+      engine: DscV2
+      runner_tags: [windows]           # DscV2 resources need a Windows runner with PowerShell 7
+      module_version: 1.2.1
+      resource_modules: PSDscResources@2.12.0.0
+
+dsc-validate:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+dsc-apply:
+  environment: production              # protect this environment to gate Set
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

@@ -1,0 +1,25 @@
+# Example: manage an Azure DevOps organization from GitHub Actions, with the configuration in
+# another (private) repository pinned to a commit.
+name: Azure DevOps configuration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ZanattaMichael/Dsc.PipelineRunnerActions@v1
+        with:
+          configuration-repository-url: https://github.com/contoso/azure-devops-config.git
+          configuration-revision: 3f1c9a0e5b7d2148ab6c0f39e7d5412ca8b09e6f
+          source-token: ${{ secrets.CONFIG_REPO_TOKEN }}       # read access to that repository only
+          mode: Set
+          connect: AzureDevOps
+          azure-devops-organization: contoso
+          azure-devops-token: ${{ secrets.AZURE_DEVOPS_PAT }}
+          module-version: 1.2.1
+          resource-modules: AzureDevOpsDscNative

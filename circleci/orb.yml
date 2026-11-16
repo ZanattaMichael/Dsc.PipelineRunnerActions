@@ -1,0 +1,291 @@
+version: 2.1
+
+description: >
+  Test, apply or dry-run a Datum-driven Desired State Configuration with Dsc.PipelineRunner,
+  with reports and a pass/fail gate.
+  Requires PowerShell 7 (pwsh) in the executor; the default executor has it.
+  Requirements: https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions/blob/main/docs/requirements.md
+  Settings: https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions/blob/main/docs/settings.md
+
+display:
+  home_url: https://github.com/ZanattaMichael/Dsc.PipelineRunner
+  source_url: https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions
+
+executors:
+  default:
+    description: A Linux container with PowerShell 7 and git. For the DscV3 engine use an image that also contains dsc.
+    parameters:
+      image:
+        description: Container image. It must contain PowerShell 7 (pwsh).
+        type: string
+        default: mcr.microsoft.com/dotnet/sdk:8.0
+    docker:
+      - image: << parameters.image >>
+
+commands:
+  run:
+    description: >
+      Run Dsc.PipelineRunner in the current job. Check out the code first when configuration-path is used.
+      Secrets are read from environment variables (set them in a context); the *-variable parameters name them.
+    parameters:
+      configuration-path:
+        description: 'Directory that holds the Datum configuration (the folder containing Datum.yml), relative to the working directory. Set this or configuration-repository-url, not both.'
+        type: string
+        default: ''
+      configuration-repository-url:
+        description: 'HTTPS or SSH URL of a Git repository that holds the Datum configuration. The runner clones it. Set this or configuration-path, not both. Requires git on the agent.'
+        type: string
+        default: ''
+      configuration-revision:
+        description: 'Branch, tag or commit to check out when configuration-repository-url is set. A full 40-character commit SHA is verified after the clone and is the recommended value.'
+        type: string
+        default: ''
+      source-token-variable:
+        description: 'Name of the environment variable that holds this secret. Token used to clone configuration-repository-url over HTTPS when the repository is private. Needs read access to that repository only. Define the variable in a context or the project settings.'
+        type: env_var_name
+        default: DSCPR_SOURCE_TOKEN
+      mode:
+        description: 'Test reports drift and changes nothing. Set applies the configuration. DryRun validates the configuration without calling an engine, connecting to a target or reading a credential.'
+        type: enum
+        enum: ['Test', 'Set', 'DryRun']
+        default: 'Test'
+      engine:
+        description: 'DscV2 uses Invoke-DscResource (PowerShell resources; most are Windows-only). DscV3 uses the dsc command-line engine, which must already be installed and on PATH.'
+        type: enum
+        enum: ['DscV2', 'DscV3']
+        default: 'DscV2'
+      engine-version:
+        description: 'Optional engine version passed to the runner (-EngineVersion). Leave empty for the engine''s default.'
+        type: string
+        default: ''
+      fail-on-error:
+        description: 'Fail the step when the run status is Failed or Aborted. In Test mode drift counts as a failure, so this makes a Test run a compliance gate.'
+        type: boolean
+        default: true
+      report-path:
+        description: 'Directory for the reports (CSV and JSON per node, report.json, and this integration''s result.json and outputs.env). Created if missing. Publish it as a build artifact.'
+        type: string
+        default: 'dsc-reports'
+      connect:
+        description: 'AzureDevOps opens an Azure DevOps session before the run, for configurations that manage Azure DevOps with AzureDevOpsDscNative. That module must be installed (list it in resource-modules).'
+        type: enum
+        enum: ['None', 'AzureDevOps']
+        default: 'None'
+      azure-devops-organization:
+        description: 'Azure DevOps organization name. Required when connect is AzureDevOps.'
+        type: string
+        default: ''
+      azure-devops-authentication:
+        description: 'How to authenticate to Azure DevOps. PAT needs azure-devops-token. ManagedIdentity needs an agent that runs with an Azure managed identity.'
+        type: enum
+        enum: ['PAT', 'ManagedIdentity']
+        default: 'PAT'
+      azure-devops-token-variable:
+        description: 'Name of the environment variable that holds this secret. Azure DevOps personal access token (20 to 120 letters and digits). Required when connect is AzureDevOps, authentication is PAT and mode is not DryRun. Define the variable in a context or the project settings.'
+        type: env_var_name
+        default: DSCPR_AZURE_DEVOPS_TOKEN
+      module-version:
+        description: 'Exact Dsc.PipelineRunner version to install, for example 1.2.1. Pinning is recommended. Empty uses a version already on the agent, otherwise installs the newest stable release.'
+        type: string
+        default: ''
+      allow-prerelease:
+        description: 'Allow a preview version of Dsc.PipelineRunner (needed when module-version names one, for example 1.3.0-preview1).'
+        type: boolean
+        default: false
+      module-repository:
+        description: 'Registered PowerShell repository to install modules from. Use this for an internal feed; the repository must already be registered on the agent.'
+        type: string
+        default: 'PSGallery'
+      resource-modules:
+        description: 'DSC resource modules the configuration uses, one per line or comma-separated, as Name or Name@Version (for example PSDscResources@2.12.0.0). Pinning versions is recommended.'
+        type: string
+        default: ''
+      skip-module-install:
+        description: 'Install nothing. Use on agents or container images where Dsc.PipelineRunner and the resource modules are already present, or where the agent has no access to a module repository.'
+        type: boolean
+        default: false
+      keep-temporary-directory:
+        description: 'Keep the clone and the compiled per-node YAML on disk after the run, to debug a compile failure.'
+        type: boolean
+        default: false
+      verbose:
+        description: 'Write the runner''s verbose log.'
+        type: boolean
+        default: false
+      actions-ref:
+        description: Tag or commit of Dsc.PipelineRunnerActions that the step script is fetched from. A published orb version pins the commit it was built from.
+        type: string
+        default: '__DSCPR_ACTIONS_REF__'
+    steps:
+      - run:
+          name: Dsc.PipelineRunner (<< parameters.mode >>)
+          environment:
+            DSCPR_PLATFORM: circleci
+            DSCPR_STEP_DIRECTORY: .dsc-pipeline-runner
+            DSCPR_STEP_SCRIPT: Invoke-DscPipelineRunnerStep.ps1
+            DSCPR_CORE_FILES: Invoke-DscPipelineRunnerStep.ps1,settings.json
+            DSCPR_CORE_URL: https://raw.githubusercontent.com/ZanattaMichael/Dsc.PipelineRunnerActions/<< parameters.actions-ref >>/core/
+            DSCPR_SOURCE_TOKEN_TARGET: DSCPR_SOURCE_TOKEN
+            DSCPR_AZURE_DEVOPS_TOKEN_TARGET: DSCPR_AZURE_DEVOPS_TOKEN
+            DSCPR_CONFIGURATION_PATH: "<< parameters.configuration-path >>"
+            DSCPR_CONFIGURATION_REPOSITORY_URL: "<< parameters.configuration-repository-url >>"
+            DSCPR_CONFIGURATION_REVISION: "<< parameters.configuration-revision >>"
+            DSCPR_SOURCE_TOKEN_VARIABLE: "<< parameters.source-token-variable >>"
+            DSCPR_MODE: "<< parameters.mode >>"
+            DSCPR_ENGINE: "<< parameters.engine >>"
+            DSCPR_ENGINE_VERSION: "<< parameters.engine-version >>"
+            DSCPR_FAIL_ON_ERROR: "<< parameters.fail-on-error >>"
+            DSCPR_REPORT_PATH: "<< parameters.report-path >>"
+            DSCPR_CONNECT: "<< parameters.connect >>"
+            DSCPR_AZURE_DEVOPS_ORGANIZATION: "<< parameters.azure-devops-organization >>"
+            DSCPR_AZURE_DEVOPS_AUTHENTICATION: "<< parameters.azure-devops-authentication >>"
+            DSCPR_AZURE_DEVOPS_TOKEN_VARIABLE: "<< parameters.azure-devops-token-variable >>"
+            DSCPR_MODULE_VERSION: "<< parameters.module-version >>"
+            DSCPR_ALLOW_PRERELEASE: "<< parameters.allow-prerelease >>"
+            DSCPR_MODULE_REPOSITORY: "<< parameters.module-repository >>"
+            DSCPR_RESOURCE_MODULES: "<< parameters.resource-modules >>"
+            DSCPR_SKIP_MODULE_INSTALL: "<< parameters.skip-module-install >>"
+            DSCPR_KEEP_TEMPORARY_DIRECTORY: "<< parameters.keep-temporary-directory >>"
+            DSCPR_VERBOSE: "<< parameters.verbose >>"
+          # One command, written so that it is valid in sh, bash and PowerShell job shells alike.
+          command: pwsh -NoLogo -NoProfile -NonInteractive -Command 'foreach ($pair in @(@($env:DSCPR_SOURCE_TOKEN_VARIABLE, $env:DSCPR_SOURCE_TOKEN_TARGET), @($env:DSCPR_AZURE_DEVOPS_TOKEN_VARIABLE, $env:DSCPR_AZURE_DEVOPS_TOKEN_TARGET))) { if ($pair[0] -and $pair[0] -ne $pair[1]) { [Environment]::SetEnvironmentVariable($pair[1], [Environment]::GetEnvironmentVariable($pair[0])) } }; New-Item -ItemType Directory -Force -Path $env:DSCPR_STEP_DIRECTORY | Out-Null; foreach ($file in $env:DSCPR_CORE_FILES.Split([char]44)) { Invoke-WebRequest -Uri ($env:DSCPR_CORE_URL + $file) -OutFile (Join-Path $env:DSCPR_STEP_DIRECTORY $file) }; & (Join-Path $env:DSCPR_STEP_DIRECTORY $env:DSCPR_STEP_SCRIPT); exit $LASTEXITCODE'
+      - store_artifacts:
+          path: << parameters.report-path >>
+          destination: dsc-reports
+
+jobs:
+  run:
+    description: Check out the code and run Dsc.PipelineRunner.
+    parameters:
+      executor:
+        description: Executor to run on. For the DscV2 engine use a Windows executor that has PowerShell 7.
+        type: executor
+        default: default
+      configuration-path:
+        description: 'Directory that holds the Datum configuration (the folder containing Datum.yml), relative to the working directory. Set this or configuration-repository-url, not both.'
+        type: string
+        default: ''
+      configuration-repository-url:
+        description: 'HTTPS or SSH URL of a Git repository that holds the Datum configuration. The runner clones it. Set this or configuration-path, not both. Requires git on the agent.'
+        type: string
+        default: ''
+      configuration-revision:
+        description: 'Branch, tag or commit to check out when configuration-repository-url is set. A full 40-character commit SHA is verified after the clone and is the recommended value.'
+        type: string
+        default: ''
+      source-token-variable:
+        description: 'Name of the environment variable that holds this secret. Token used to clone configuration-repository-url over HTTPS when the repository is private. Needs read access to that repository only. Define the variable in a context or the project settings.'
+        type: env_var_name
+        default: DSCPR_SOURCE_TOKEN
+      mode:
+        description: 'Test reports drift and changes nothing. Set applies the configuration. DryRun validates the configuration without calling an engine, connecting to a target or reading a credential.'
+        type: enum
+        enum: ['Test', 'Set', 'DryRun']
+        default: 'Test'
+      engine:
+        description: 'DscV2 uses Invoke-DscResource (PowerShell resources; most are Windows-only). DscV3 uses the dsc command-line engine, which must already be installed and on PATH.'
+        type: enum
+        enum: ['DscV2', 'DscV3']
+        default: 'DscV2'
+      engine-version:
+        description: 'Optional engine version passed to the runner (-EngineVersion). Leave empty for the engine''s default.'
+        type: string
+        default: ''
+      fail-on-error:
+        description: 'Fail the step when the run status is Failed or Aborted. In Test mode drift counts as a failure, so this makes a Test run a compliance gate.'
+        type: boolean
+        default: true
+      report-path:
+        description: 'Directory for the reports (CSV and JSON per node, report.json, and this integration''s result.json and outputs.env). Created if missing. Publish it as a build artifact.'
+        type: string
+        default: 'dsc-reports'
+      connect:
+        description: 'AzureDevOps opens an Azure DevOps session before the run, for configurations that manage Azure DevOps with AzureDevOpsDscNative. That module must be installed (list it in resource-modules).'
+        type: enum
+        enum: ['None', 'AzureDevOps']
+        default: 'None'
+      azure-devops-organization:
+        description: 'Azure DevOps organization name. Required when connect is AzureDevOps.'
+        type: string
+        default: ''
+      azure-devops-authentication:
+        description: 'How to authenticate to Azure DevOps. PAT needs azure-devops-token. ManagedIdentity needs an agent that runs with an Azure managed identity.'
+        type: enum
+        enum: ['PAT', 'ManagedIdentity']
+        default: 'PAT'
+      azure-devops-token-variable:
+        description: 'Name of the environment variable that holds this secret. Azure DevOps personal access token (20 to 120 letters and digits). Required when connect is AzureDevOps, authentication is PAT and mode is not DryRun. Define the variable in a context or the project settings.'
+        type: env_var_name
+        default: DSCPR_AZURE_DEVOPS_TOKEN
+      module-version:
+        description: 'Exact Dsc.PipelineRunner version to install, for example 1.2.1. Pinning is recommended. Empty uses a version already on the agent, otherwise installs the newest stable release.'
+        type: string
+        default: ''
+      allow-prerelease:
+        description: 'Allow a preview version of Dsc.PipelineRunner (needed when module-version names one, for example 1.3.0-preview1).'
+        type: boolean
+        default: false
+      module-repository:
+        description: 'Registered PowerShell repository to install modules from. Use this for an internal feed; the repository must already be registered on the agent.'
+        type: string
+        default: 'PSGallery'
+      resource-modules:
+        description: 'DSC resource modules the configuration uses, one per line or comma-separated, as Name or Name@Version (for example PSDscResources@2.12.0.0). Pinning versions is recommended.'
+        type: string
+        default: ''
+      skip-module-install:
+        description: 'Install nothing. Use on agents or container images where Dsc.PipelineRunner and the resource modules are already present, or where the agent has no access to a module repository.'
+        type: boolean
+        default: false
+      keep-temporary-directory:
+        description: 'Keep the clone and the compiled per-node YAML on disk after the run, to debug a compile failure.'
+        type: boolean
+        default: false
+      verbose:
+        description: 'Write the runner''s verbose log.'
+        type: boolean
+        default: false
+      actions-ref:
+        description: Tag or commit of Dsc.PipelineRunnerActions that the step script is fetched from.
+        type: string
+        default: '__DSCPR_ACTIONS_REF__'
+    executor: << parameters.executor >>
+    steps:
+      - checkout
+      - run:
+          configuration-path: << parameters.configuration-path >>
+          configuration-repository-url: << parameters.configuration-repository-url >>
+          configuration-revision: << parameters.configuration-revision >>
+          source-token-variable: << parameters.source-token-variable >>
+          mode: << parameters.mode >>
+          engine: << parameters.engine >>
+          engine-version: << parameters.engine-version >>
+          fail-on-error: << parameters.fail-on-error >>
+          report-path: << parameters.report-path >>
+          connect: << parameters.connect >>
+          azure-devops-organization: << parameters.azure-devops-organization >>
+          azure-devops-authentication: << parameters.azure-devops-authentication >>
+          azure-devops-token-variable: << parameters.azure-devops-token-variable >>
+          module-version: << parameters.module-version >>
+          allow-prerelease: << parameters.allow-prerelease >>
+          module-repository: << parameters.module-repository >>
+          resource-modules: << parameters.resource-modules >>
+          skip-module-install: << parameters.skip-module-install >>
+          keep-temporary-directory: << parameters.keep-temporary-directory >>
+          verbose: << parameters.verbose >>
+          actions-ref: << parameters.actions-ref >>
+
+examples:
+  test-a-configuration:
+    description: Report drift for the configuration in ./config and fail the job when there is any.
+    usage:
+      version: 2.1
+      orbs:
+        dsc-pipeline-runner: zanattamichael/dsc-pipeline-runner@1
+      workflows:
+        compliance:
+          jobs:
+            - dsc-pipeline-runner/run:
+                configuration-path: config
+                engine: DscV3
+                module-version: 1.2.1

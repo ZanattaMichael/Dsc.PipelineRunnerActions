@@ -1,0 +1,34 @@
+# Example: report drift on every commit, apply on main after approval.
+# Replace <namespace> with the namespace the orb is published under.
+version: 2.1
+
+orbs:
+  dsc: <namespace>/dsc-pipeline-runner@1
+
+workflows:
+  configuration:
+    jobs:
+      - dsc/run:
+          name: drift
+          configuration-path: config
+          engine: DscV3
+          mode: Test
+          module-version: 1.2.1
+          executor:
+            name: dsc/default
+            image: registry.example.com/dsc-agent:1   # an image with pwsh and the dsc engine
+      - hold:
+          type: approval
+          requires: [drift]
+          filters: { branches: { only: main } }
+      - dsc/run:
+          name: apply
+          requires: [hold]
+          context: dsc-production        # holds DSCPR_SOURCE_TOKEN / DSCPR_AZURE_DEVOPS_TOKEN if needed
+          configuration-path: config
+          engine: DscV3
+          mode: Set
+          module-version: 1.2.1
+          executor:
+            name: dsc/default
+            image: registry.example.com/dsc-agent:1
