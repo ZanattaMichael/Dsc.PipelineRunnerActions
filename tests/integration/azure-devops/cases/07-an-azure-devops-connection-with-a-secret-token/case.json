@@ -1,0 +1,36 @@
+{
+  "description": "The Azure DevOps connection settings and a secret token reach the module; the token stays out of the log.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "secretVariables": {
+    "AzureDevOpsPat": "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOP"
+  },
+  "inputs": {
+    "configurationPath": "config",
+    "mode": "DryRun",
+    "connect": "AzureDevOps",
+    "azureDevopsOrganization": "contoso",
+    "azureDevopsToken": "$(AzureDevOpsPat)",
+    "skipModuleInstall": "true"
+  },
+  "expect": {
+    "result": "Succeeded",
+    "exitCode": 0,
+    "call": {
+      "Mode": "DryRun",
+      "Connect": "AzureDevOps",
+      "ConnectContext.OrganizationName": "contoso",
+      "ConnectContext.AuthenticationType": "PAT"
+    },
+    "contains": [
+      "azure-devops-token\\s+\\(set, hidden\\)"
+    ],
+    "notContains": [
+      "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOP"
+    ]
+  }
+}

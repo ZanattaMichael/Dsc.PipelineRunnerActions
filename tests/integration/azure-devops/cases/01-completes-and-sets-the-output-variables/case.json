@@ -1,0 +1,39 @@
+{
+  "description": "A step with only a configuration path runs with the task's defaults and sets every output variable.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "inputs": {
+    "configurationPath": "config",
+    "skipModuleInstall": "true"
+  },
+  "expect": {
+    "result": "Succeeded",
+    "exitCode": 0,
+    "outputs": {
+      "status": "Completed",
+      "total_resources": "3",
+      "pass_count": "3",
+      "fail_count": "0",
+      "skip_count": "0",
+      "module_version": "9.9.9",
+      "report_path": {
+        "matches": "[\\\\/]dsc-reports$"
+      }
+    },
+    "call": {
+      "Mode": "Test",
+      "Engine": "DscV2"
+    },
+    "files": [
+      "dsc-reports/result.json",
+      "dsc-reports/outputs.env"
+    ],
+    "contains": [
+      "##\\[group\\]"
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "description": "With skipModuleInstall, a resource module that is not on the agent is named and the run is aborted.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "inputs": {
+    "configurationPath": "config",
+    "skipModuleInstall": "true",
+    "resourceModules": "NotOnThisAgent@1.0.0"
+  },
+  "expect": {
+    "result": "Failed",
+    "exitCode": 1,
+    "notCalled": true,
+    "outputs": {
+      "status": "Aborted"
+    },
+    "contains": [
+      "Required module\\(s\\) are not installed on the agent: NotOnThisAgent"
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "description": "With failOnError false a Failed run does not fail the step; the status is in the output variable.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules",
+    "DSCPR_TEST_STATUS": "Failed"
+  },
+  "inputs": {
+    "configurationPath": "config",
+    "skipModuleInstall": "true",
+    "failOnError": "false"
+  },
+  "expect": {
+    "result": "Succeeded",
+    "exitCode": 0,
+    "outputs": {
+      "status": "Failed",
+      "fail_count": "1"
+    },
+    "issues": [
+      {
+        "type": "warning",
+        "matches": "'fail-on-error' is false, so this step does not fail"
+      }
+    ]
+  }
+}

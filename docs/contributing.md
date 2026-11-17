@@ -38,12 +38,14 @@ node --test azure-devops/tests/index.test.js
 | `tests/Examples.tests.ps1` | Every example pipeline and documentation snippet uses only settings that exist; relative links resolve; the GitLab and CircleCI command is shell-agnostic. |
 | `tests/Tools.tests.ps1` | The scripts in `tools/`, run on a copy of the repository, and the shape of `core/settings.json`. |
 | `azure-devops/tests/index.test.js` | The Azure DevOps task entry point: input mapping, undefined variables, a missing PowerShell, `task.json`. |
+| `tests/integration/azure-devops/` | The packaged Azure DevOps task, run the way an agent runs it, case by case; and the same cases on a real agent where an organization is configured. See its [README](../tests/integration/azure-devops/README.md). |
+| `tests/integration/jenkins/` | The Jenkins shared library in a real Jenkins controller in Docker. |
 
 None of these need the network. The step tests run against stand-in modules in `tests/fixtures/`
 that record the arguments they received; `tests/TestHelpers.ps1` holds the shared helpers.
 
-CI also runs the GitHub Action and the Azure DevOps task entry point for real, packages the
-extension, runs the action once against the real module from the PowerShell Gallery, and builds
+CI also runs the GitHub Action for real, packages the Azure DevOps extension and runs its
+integration cases against the package, runs the action once against the real module from the PowerShell Gallery, and builds
 the module from source on Windows and Linux.
 
 ## Adding or changing a setting

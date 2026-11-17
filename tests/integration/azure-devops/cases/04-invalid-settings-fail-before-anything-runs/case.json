@@ -1,0 +1,28 @@
+{
+  "description": "Every invalid input is reported in one pass, the step fails with exit code 2 and the module is not called.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "inputs": {
+    "configurationPath": "config",
+    "mode": "Apply",
+    "engine": "DscV4",
+    "skipModuleInstall": "true"
+  },
+  "expect": {
+    "result": "Failed",
+    "exitCode": 2,
+    "notCalled": true,
+    "outputs": {
+      "status": "InvalidSettings"
+    },
+    "contains": [
+      "'mode' is 'Apply'\\. Allowed values: Test, Set, DryRun",
+      "'engine' is 'DscV4'",
+      "2 problem\\(s\\) must be fixed"
+    ]
+  }
+}
