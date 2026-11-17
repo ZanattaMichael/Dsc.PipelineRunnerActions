@@ -27,7 +27,13 @@ BeforeAll {
     }
 }
 
-AfterAll { Restore-StepTestEnvironment }
+AfterAll {
+    Restore-StepTestEnvironment
+    # git marks its object files read-only; on Windows Pester cannot remove TestDrive until they are not.
+    if ($script:Repository -and (Test-Path -LiteralPath $script:Repository)) {
+        Get-ChildItem -LiteralPath $script:Repository -Recurse -Force -File | Where-Object { $_.IsReadOnly } | ForEach-Object { $_.IsReadOnly = $false }
+    }
+}
 
 Describe 'Module from the source repository' -Skip:(-not (Get-Command git -CommandType Application -ErrorAction SilentlyContinue)) {
 
@@ -162,6 +168,34 @@ Describe 'Module from the source repository' -Skip:(-not (Get-Command git -Comma
             Invoke-SourceStep -Ref 'main' -Setting @{ mode = 'DryRun'; engine = 'DscV2' }
             $Call.Mode | Should -Be 'DryRun'
             $Call.ConfigurationSourcePath | Should -Be (Resolve-Path $Config).Path
+        }
+
+        It 'Removes its clone and build when the run ends, whether it worked or not' {
+            $temp = [System.IO.Path]::GetTempPath()
+            $before = @(Get-ChildItem -LiteralPath $temp -Directory -Filter 'dscpr-source-*').FullName
+            Invoke-SourceStep -Ref 'main'
+            Invoke-SourceStep -Ref 'build-fails'
+            Invoke-SourceStep -Ref 'no-such-branch'
+            @(Get-ChildItem -LiteralPath $temp -Directory -Filter 'dscpr-source-*' | Where-Object { $_.FullName -notin $before }) | Should -BeNullOrEmpty
+        }
+
+        It 'Keeps its clone and build with keep-temporary-directory, and says where' {
+            $temp = [System.IO.Path]::GetTempPath()
+            $before = @(Get-ChildItem -LiteralPath $temp -Directory -Filter 'dscpr-source-*').FullName
+            Invoke-SourceStep -Ref 'main' -Setting @{ 'keep-temporary-directory' = 'true' }
+            $kept = @(Get-ChildItem -LiteralPath $temp -Directory -Filter 'dscpr-source-*' | Where-Object { $_.FullName -notin $before })
+            try {
+                $kept.Count | Should -Be 1
+                $Text | Should -Match 'The module source and build were kept at'
+                Test-Path -LiteralPath (Join-Path $kept[0].FullName 'output/Dsc.PipelineRunner/7.7.7/Dsc.PipelineRunner.psd1') | Should -BeTrue
+            }
+            finally {
+                Remove-Module -Name 'Dsc.PipelineRunner' -Force -ErrorAction Ignore
+                foreach ($directory in $kept) {
+                    Get-ChildItem -LiteralPath $directory.FullName -Recurse -Force -File | Where-Object { $_.IsReadOnly } | ForEach-Object { $_.IsReadOnly = $false }
+                    Remove-Item -LiteralPath $directory.FullName -Recurse -Force
+                }
+            }
         }
 
         It 'Leaves the working directory and the caller''s module path alone' {

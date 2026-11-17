@@ -411,6 +411,8 @@ function Install-StepModuleFromSource {
 
     $pwsh = (Get-Process -Id $PID).Path
     $work = Join-Path ([System.IO.Path]::GetTempPath()) ('dscpr-source-' + [guid]::NewGuid().ToString('N'))
+    # Remembered so the clone can be removed when the step ends, however it ends.
+    $script:sourceWorkDirectory = $work
 
     Write-Host "  Cloning the module source at '$Ref'."
     # Arguments are passed as an array (never through a shell), and '--' ends option parsing,
@@ -479,6 +481,7 @@ function Install-StepModuleFromSource {
 }
 
 $sourceManifest = $null
+$script:sourceWorkDirectory = $null
 
 try {
     Write-StepGroup 'Dsc.PipelineRunner: modules'
@@ -654,6 +657,26 @@ elseif ($failed -and (Test-Flag 'fail-on-error')) {
 }
 elseif ($failed) {
     Write-StepProblem -Level warning -Message "The run status is $($result.Status). 'fail-on-error' is false, so this step does not fail."
+}
+
+# Remove the source clone and build (module-source: Repository), unless asked to keep temporary
+# files. The module was imported from there, so unload it first. git marks its object files
+# read-only, which stops a plain delete on Windows.
+if ($script:sourceWorkDirectory -and (Test-Path -LiteralPath $script:sourceWorkDirectory)) {
+    if (Test-Flag 'keep-temporary-directory') {
+        Write-Host "The module source and build were kept at $script:sourceWorkDirectory ('keep-temporary-directory' is true)."
+    }
+    else {
+        try {
+            Remove-Module -Name 'Dsc.PipelineRunner' -Force -ErrorAction Ignore
+            Get-ChildItem -LiteralPath $script:sourceWorkDirectory -Recurse -Force -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.IsReadOnly } | ForEach-Object { $_.IsReadOnly = $false }
+            Remove-Item -LiteralPath $script:sourceWorkDirectory -Recurse -Force -ErrorAction Stop
+        }
+        catch {
+            Write-StepProblem -Level warning -Message "The module source at $script:sourceWorkDirectory could not be removed: $($_.Exception.Message)"
+        }
+    }
 }
 
 return (Exit-Step -Code $exitCode -Result $resultObject)

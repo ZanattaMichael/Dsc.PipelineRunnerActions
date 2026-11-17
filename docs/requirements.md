@@ -51,7 +51,8 @@ What happens: the repository is cloned to a temporary directory and checked out 
 `module-source-ref` (a full commit SHA is verified), `build.ps1 -ResolveDependency -Tasks build`
 runs in a separate process, the run-time dependencies are installed (with the repository's own
 pinned installer when the commit has one), and the built module (`output/Dsc.PipelineRunner/<version>/`) is imported by path. `module-version`
-is ignored; the `module-version` output reports the version that was built.
+is ignored; the `module-version` output reports the version that was built. The clone and build are
+removed when the step ends, unless `keep-temporary-directory` is `true`.
 
 For a private fork, give the agent access with a credential helper or an SSH key; a URL that
 contains a token is rejected.
