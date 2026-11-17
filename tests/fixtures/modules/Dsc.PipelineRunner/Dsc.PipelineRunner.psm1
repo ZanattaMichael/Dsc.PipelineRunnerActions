@@ -14,7 +14,9 @@ function Invoke-DscRunner {
         [string] $Engine = 'DscV2',
         [string] $EngineVersion,
         [switch] $FailOnError,
-        [switch] $KeepTemporaryDirectory
+        [switch] $KeepTemporaryDirectory,
+        [string] $PolicyPath,
+        [switch] $RequirePolicy
     )
 
     $recorded = @{}

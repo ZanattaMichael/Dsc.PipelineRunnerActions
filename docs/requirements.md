@@ -57,6 +57,28 @@ removed when the step ends, unless `keep-temporary-directory` is `true`.
 For a private fork, give the agent access with a credential helper or an SSH key; a URL that
 contains a token is rejected.
 
+## Capability policy (preview)
+
+A capability policy says what each layer of a configuration may use. It is a file called
+`Policy.yml` at the root of the configuration, **beside `Datum.yml`**; it is not merged with
+anything, and the runner finds it there without being told. The module documents it in
+[Capability policy](https://github.com/ZanattaMichael/Dsc.PipelineRunner/blob/main/docs/capability-policy.md).
+
+| Setting | Use |
+| --- | --- |
+| *(none)* | A `Policy.yml` beside `Datum.yml` is enforced when it is there. The requirements table shows that it was found. |
+| `policy-path` | Enforce this file instead. It wins over the one in the configuration. |
+| `require-policy: true` | Fail the step when there is no policy, so removing `Policy.yml` cannot switch enforcement off unnoticed. |
+
+| Requirement | Why |
+| --- | --- |
+| A Dsc.PipelineRunner release newer than 1.2.1 | Earlier versions do not know about policies. The step refuses to run one of those when a policy is expected (a `Policy.yml` is present, or either setting is used), because it would ignore the policy. Until that release exists, use `module-source: Repository`. |
+
+One gap to know about: when the configuration is cloned by URL (`configuration-repository-url`),
+the step cannot see whether it contains a `Policy.yml` before the run. With a module that is too
+old, that policy would be ignored without the step noticing. Set `require-policy: true` to close
+the gap: the step then insists on a module that can enforce a policy.
+
 ## By engine
 
 | Engine | Requirement |

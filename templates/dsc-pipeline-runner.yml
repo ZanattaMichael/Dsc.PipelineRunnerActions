@@ -76,6 +76,13 @@ spec:
       description: 'How to authenticate to Azure DevOps. PAT needs azure-devops-token. ManagedIdentity needs an agent that runs with an Azure managed identity.'
       default: 'PAT'
       options: ['PAT', 'ManagedIdentity']
+    policy_path:
+      description: 'Preview. A capability policy file that says what each layer of the configuration may use, relative to the working directory. Usually not needed: a Policy.yml at the root of the configuration, beside Datum.yml, is used automatically. A file named here wins over it. Needs a Dsc.PipelineRunner release newer than 1.2.1.'
+      default: ''
+    require_policy:
+      description: 'Preview. Fail the step when the configuration has no capability policy (no Policy.yml beside Datum.yml and no policy-path), so removing the policy cannot switch enforcement off unnoticed. Needs a Dsc.PipelineRunner release newer than 1.2.1.'
+      default: 'false'
+      options: ['true', 'false']
     module_version:
       description: 'Exact Dsc.PipelineRunner version to install, for example 1.2.1. Pinning is recommended. Empty uses a version already on the agent, otherwise installs the newest stable release.'
       default: ''
@@ -133,6 +140,8 @@ spec:
     DSCPR_CONNECT: '$[[ inputs.connect ]]'
     DSCPR_AZURE_DEVOPS_ORGANIZATION: '$[[ inputs.azure_devops_organization ]]'
     DSCPR_AZURE_DEVOPS_AUTHENTICATION: '$[[ inputs.azure_devops_authentication ]]'
+    DSCPR_POLICY_PATH: '$[[ inputs.policy_path ]]'
+    DSCPR_REQUIRE_POLICY: '$[[ inputs.require_policy ]]'
     DSCPR_MODULE_VERSION: '$[[ inputs.module_version ]]'
     DSCPR_ALLOW_PRERELEASE: '$[[ inputs.allow_prerelease ]]'
     DSCPR_MODULE_REPOSITORY: '$[[ inputs.module_repository ]]'

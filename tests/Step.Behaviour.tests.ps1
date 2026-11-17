@@ -202,6 +202,79 @@ Describe 'Step behaviour' {
         }
     }
 
+    Context 'Capability policy (preview)' {
+
+        BeforeEach {
+            # A configuration with a Policy.yml beside its Datum.yml, and a policy file elsewhere.
+            $script:PolicyConfig = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+            Copy-Item -LiteralPath $Config -Destination $PolicyConfig -Recurse
+            Set-Content -LiteralPath (Join-Path $PolicyConfig 'Policy.yml') -Value 'PolicyVersion: 1'
+            $script:ExternalPolicy = Join-Path $TestDrive ([guid]::NewGuid().ToString('N') + '.yml')
+            Set-Content -LiteralPath $ExternalPolicy -Value 'PolicyVersion: 1'
+        }
+
+        It 'Passes nothing when no policy is involved' {
+            Invoke-Step -Setting @{ 'configuration-path' = $Config }
+            $Call.PSObject.Properties.Name | Should -Not -Contain 'PolicyPath'
+            $Call.PSObject.Properties.Name | Should -Not -Contain 'RequirePolicy'
+            $Text | Should -Not -Match 'Capability policy'
+        }
+
+        It 'Shows that the configuration has a Policy.yml, and leaves finding it to the runner' {
+            Invoke-Step -Setting @{ 'configuration-path' = $PolicyConfig }
+            $Result.Status | Should -Be 'Completed'
+            $Text | Should -Match 'Capability policy \(Policy\.yml beside Datum\.yml\)\s+OK'
+            $Call.PSObject.Properties.Name | Should -Not -Contain 'PolicyPath'
+        }
+
+        It 'Passes policy-path as an absolute path, and require-policy' {
+            Push-Location (Split-Path -Parent $ExternalPolicy)
+            try { Invoke-Step -Setting @{ 'configuration-path' = $Config; 'policy-path' = (Split-Path -Leaf $ExternalPolicy); 'require-policy' = 'true' } }
+            finally { Pop-Location }
+            $Call.PolicyPath | Should -Be $ExternalPolicy
+            $Call.RequirePolicy | Should -BeTrue
+        }
+
+        It 'Rejects a policy-path that does not exist, before anything runs' {
+            Invoke-Step -Setting @{ 'configuration-path' = $Config; 'policy-path' = 'no-such-policy.yml' }
+            $Result.Status | Should -Be 'InvalidSettings'
+            $Text | Should -Match "'policy-path' does not exist or is not a file"
+            $Call | Should -BeNullOrEmpty
+        }
+
+        It 'Fails before the run when a policy is required and the configuration has none' {
+            Invoke-Step -Setting @{ 'configuration-path' = $Config; 'require-policy' = 'true' }
+            $Result.Status | Should -Be 'InvalidSettings'
+            $Text | Should -Match "'require-policy' is true, but the configuration has no Policy\.yml"
+            $Call | Should -BeNullOrEmpty
+        }
+
+        It 'Is satisfied by a Policy.yml in the configuration when a policy is required' {
+            Invoke-Step -Setting @{ 'configuration-path' = $PolicyConfig; 'require-policy' = 'true' }
+            $Result.Status | Should -Be 'Completed'
+            $Call.RequirePolicy | Should -BeTrue
+        }
+
+        It 'Refuses to run a module that would ignore the policy: <Why>' -ForEach @(
+            @{ Why = 'the configuration has a Policy.yml'; UsePolicyConfig = $true; Extra = @{}; Reason = 'the configuration has a Policy\.yml' }
+            @{ Why = 'policy-path is set'; UsePolicyConfig = $false; Extra = @{ 'policy-path' = '__EXTERNAL__' }; Reason = "'policy-path' is set" }
+        ) {
+            $env:PSModulePath = $OldFixtureModules + [System.IO.Path]::PathSeparator + $BasePSModulePath
+            $setting = @{ 'configuration-path' = $(if ($UsePolicyConfig) { $PolicyConfig } else { $Config }) }
+            foreach ($key in $Extra.Keys) { $setting[$key] = $(if ($Extra[$key] -eq '__EXTERNAL__') { $ExternalPolicy } else { $Extra[$key] }) }
+            Invoke-Step -Setting $setting
+            $Result.Status | Should -Be 'Aborted'
+            $Text | Should -Match "A capability policy is expected \($Reason\), but Dsc\.PipelineRunner 1\.0\.0 cannot enforce one and would ignore it"
+            $Call | Should -BeNullOrEmpty -Because 'a run that would silently ignore the policy must not start'
+        }
+
+        It 'Runs an old module as before when no policy is involved' {
+            $env:PSModulePath = $OldFixtureModules + [System.IO.Path]::PathSeparator + $BasePSModulePath
+            Invoke-Step -Setting @{ 'configuration-path' = $Config }
+            $Result.Status | Should -Be 'Completed'
+        }
+    }
+
     Context 'Warnings' {
 
         It 'Warns that <About>' -ForEach @(
