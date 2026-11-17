@@ -1,0 +1,8 @@
+{
+  "result": "SUCCESS",
+  "contains": [
+    "CASE-OK",
+    "Status: Completed, 0 resource\\(s\\) not in the desired state",
+    "Archiving artifacts"
+  ]
+}

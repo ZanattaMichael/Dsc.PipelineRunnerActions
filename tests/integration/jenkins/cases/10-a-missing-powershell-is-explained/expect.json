@@ -1,0 +1,10 @@
+{
+  "result": "FAILURE",
+  "contains": [
+    "PowerShell 7 \\(pwsh\\) is required on this agent and was not found on PATH",
+    "dscPipelineRunner: the step failed \\(exit code 2, status NotRun\\)"
+  ],
+  "notContains": [
+    "NOT-REACHED"
+  ]
+}

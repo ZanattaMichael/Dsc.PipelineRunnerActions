@@ -1,0 +1,10 @@
+{
+  "result": "FAILURE",
+  "contains": [
+    "dscPipelineRunner: unknown setting\\(s\\): configurationPth\\. Known settings: configurationPath, "
+  ],
+  "notContains": [
+    "NOT-REACHED",
+    "== Dsc\\.PipelineRunner"
+  ]
+}

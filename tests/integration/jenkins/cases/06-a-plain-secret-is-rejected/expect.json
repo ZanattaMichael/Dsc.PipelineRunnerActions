@@ -1,0 +1,10 @@
+{
+  "result": "FAILURE",
+  "contains": [
+    "pass secrets as Jenkins credentials \\(sourceTokenCredentialsId, azureDevopsTokenCredentialsId\\)"
+  ],
+  "notContains": [
+    "NOT-REACHED",
+    "== Dsc\\.PipelineRunner"
+  ]
+}

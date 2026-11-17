@@ -1,0 +1,25 @@
+@Library('dsc-pipeline-runner') _
+
+node {
+    deleteDir()
+    sh 'cp -r /repo/tests/fixtures/config config'
+    // The stand-in Dsc.PipelineRunner records the arguments it was called with in call.json.
+    withEnv(["PSModulePath=/repo/tests/fixtures/modules", "DSCPR_TEST_CALL_FILE=${pwd()}/call.json"]) {
+        def result = dscPipelineRunner(
+            configurationRepositoryUrl: 'https://example.test/platform/config.git',
+            configurationRevision: '3f1c9a0e5b7d2148ab6c0f39e7d5412ca8b09e6f',
+            sourceTokenCredentialsId: 'config-repo-token',
+            skipModuleInstall: true
+        )
+        if (result.status != 'Completed') { error "status is ${result.status}" }
+
+        def call = readFile('call.json')
+        if (!call.contains('"Source": "Git"')) { error "the Git source was not used: ${call}" }
+        if (!call.contains('https://example.test/platform/config.git')) { error "the URL did not reach the runner: ${call}" }
+        if (!call.contains('"TokenIsSecureString": true')) { error "the token did not reach the runner as a SecureString: ${call}" }
+        if (!call.contains('3f1c9a0e5b7d2148ab6c0f39e7d5412ca8b09e6f')) { error "the revision did not reach the runner: ${call}" }
+        if (call.contains('super-secret-value-123')) { error 'the secret was recorded in clear text' }
+        if (readFile('dsc-reports/result.json').contains('super-secret-value-123')) { error 'the secret is in result.json' }
+        echo 'CASE-OK'
+    }
+}
