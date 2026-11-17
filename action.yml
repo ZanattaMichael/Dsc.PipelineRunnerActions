@@ -108,7 +108,7 @@ inputs:
 
 outputs:
   status:
-    description: 'Overall run status: Completed, PartialSuccess, Failed or Aborted.'
+    description: 'Overall run status: Completed, PartialSuccess, Failed or Aborted; or InvalidSettings when the settings were not valid and nothing ran.'
     value: ${{ steps.run.outputs.status }}
   total-resources:
     description: 'Number of resources evaluated.'

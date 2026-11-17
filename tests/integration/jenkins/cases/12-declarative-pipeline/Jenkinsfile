@@ -1,0 +1,26 @@
+@Library('dsc-pipeline-runner') _
+
+pipeline {
+    agent any
+    environment {
+        PSModulePath = '/repo/tests/fixtures/modules'
+        // The stand-in Dsc.PipelineRunner records the arguments it was called with here.
+        DSCPR_TEST_CALL_FILE = "${WORKSPACE}/call.json"
+    }
+    stages {
+        stage('Drift') {
+            steps {
+                sh 'rm -rf config dsc-reports && cp -r /repo/tests/fixtures/config config'
+                script {
+                    def result = dscPipelineRunner(configurationPath: 'config', mode: 'Test', skipModuleInstall: true)
+                    echo "Status: ${result.status}, ${result.failCount} resource(s) not in the desired state"
+                    if (result.status != 'Completed') { error "status is ${result.status}" }
+                }
+            }
+        }
+    }
+    post {
+        always { archiveArtifacts artifacts: 'dsc-reports/**', allowEmptyArchive: false }
+        success { echo 'CASE-OK' }
+    }
+}

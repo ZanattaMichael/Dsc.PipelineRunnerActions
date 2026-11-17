@@ -1,0 +1,7 @@
+{
+  "result": "SUCCESS",
+  "contains": [
+    "CASE-OK",
+    "'fail-on-error' is false, so this step does not fail"
+  ]
+}

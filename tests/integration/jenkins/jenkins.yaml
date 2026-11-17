@@ -1,0 +1,38 @@
+# Configuration as code for the integration-test controller. Test use only: no authentication.
+jenkins:
+  systemMessage: "Dsc.PipelineRunner integration tests"
+  numExecutors: 2
+  authorizationStrategy: unsecured
+
+unclassified:
+  # The Jenkins CLI, which the test driver uses to create and run jobs, refuses to work until
+  # the controller knows its own URL.
+  location:
+    url: http://localhost:8080/
+  globalLibraries:
+    libraries:
+      # The library under test, exactly as docs/jenkins.md tells users to register it:
+      # a Git repository with Library Path jenkins/.
+      - name: dsc-pipeline-runner
+        defaultVersion: under-test
+        retriever:
+          modernSCM:
+            libraryPath: jenkins/
+            scm:
+              git:
+                remote: /library
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - string:
+              id: config-repo-token
+              scope: GLOBAL
+              description: "Stands in for a token to a private configuration repository"
+              secret: super-secret-value-123
+          - string:
+              id: azure-devops-pat
+              scope: GLOBAL
+              description: "Stands in for an Azure DevOps personal access token"
+              secret: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

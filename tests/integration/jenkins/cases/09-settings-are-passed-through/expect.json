@@ -1,0 +1,8 @@
+{
+  "result": "SUCCESS",
+  "contains": [
+    "CASE-OK",
+    "engine\\s+DscV3\\s+set",
+    "resource-modules\\s+DscprTestDependency@1\\.0\\.0"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "result": "FAILURE",
+  "contains": [
+    "dscPipelineRunner: the step failed \\(exit code 1, status Failed\\)",
+    "'fail-on-error' is true, so this step fails"
+  ],
+  "notContains": [
+    "NOT-REACHED"
+  ]
+}

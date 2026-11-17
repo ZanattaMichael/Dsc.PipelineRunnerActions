@@ -1,0 +1,10 @@
+{
+  "result": "SUCCESS",
+  "contains": [
+    "CASE-OK",
+    "Platform: jenkins",
+    "== Dsc\\.PipelineRunner: requirements",
+    "== Dsc\\.PipelineRunner: settings",
+    "Dsc\\.PipelineRunner Completed: 3 resource\\(s\\), 3 passed"
+  ]
+}

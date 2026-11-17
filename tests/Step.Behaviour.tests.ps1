@@ -246,6 +246,25 @@ Describe 'Step behaviour' {
             }
         }
 
+        It 'Writes the status for settings that are not valid, so a caller can read it' {
+            Invoke-Step -Setting @{ 'configuration-path' = $Config; mode = 'Apply' }
+            $Result.Status | Should -Be 'InvalidSettings'
+            $written = Get-Content -LiteralPath (Join-Path $Reports 'result.json') -Raw | ConvertFrom-Json
+            $written.Status | Should -Be 'InvalidSettings'
+            $written.Problems -join ' ' | Should -Match "'mode' is 'Apply'"
+            Get-Content -LiteralPath (Join-Path $Reports 'outputs.env') | Should -Contain 'DSCPR_STATUS=InvalidSettings'
+            $Call | Should -BeNullOrEmpty
+        }
+
+        It 'Publishes the InvalidSettings status as a GitHub output and an Azure DevOps variable' {
+            $env:GITHUB_OUTPUT = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+            Invoke-Step -Setting @{ 'configuration-path' = $Config; mode = 'Apply' } -Platform github
+            Get-Content -LiteralPath $env:GITHUB_OUTPUT | Should -Contain 'status=InvalidSettings'
+
+            Invoke-Step -Setting @{ 'configuration-path' = $Config; mode = 'Apply' } -Platform azure-devops
+            $Text | Should -Match '##vso\[task\.setvariable variable=status;isOutput=true\]InvalidSettings'
+        }
+
         It 'Writes a result for a run that could not start' {
             Invoke-Step -Setting @{ 'configuration-path' = $Config; 'resource-modules' = 'NotOnThisAgent@1.0.0' }
             $written = Get-Content -LiteralPath (Join-Path $Reports 'result.json') -Raw | ConvertFrom-Json

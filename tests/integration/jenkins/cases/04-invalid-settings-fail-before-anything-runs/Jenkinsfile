@@ -1,0 +1,11 @@
+@Library('dsc-pipeline-runner') _
+
+node {
+    deleteDir()
+    sh 'cp -r /repo/tests/fixtures/config config'
+    // The stand-in Dsc.PipelineRunner records the arguments it was called with in call.json.
+    withEnv(["PSModulePath=/repo/tests/fixtures/modules", "DSCPR_TEST_CALL_FILE=${pwd()}/call.json"]) {
+        dscPipelineRunner(configurationPath: 'config', mode: 'Apply', engine: 'DscV4', skipModuleInstall: true)
+        echo 'NOT-REACHED'
+    }
+}

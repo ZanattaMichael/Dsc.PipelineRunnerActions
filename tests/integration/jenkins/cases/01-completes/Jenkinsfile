@@ -1,0 +1,21 @@
+@Library('dsc-pipeline-runner') _
+
+node {
+    deleteDir()
+    sh 'cp -r /repo/tests/fixtures/config config'
+    // The stand-in Dsc.PipelineRunner records the arguments it was called with in call.json.
+    withEnv(["PSModulePath=/repo/tests/fixtures/modules", "DSCPR_TEST_CALL_FILE=${pwd()}/call.json"]) {
+        def result = dscPipelineRunner(configurationPath: 'config', mode: 'Set', skipModuleInstall: true)
+
+        if (result.status != 'Completed') { error "status is ${result.status}" }
+        if (result.totalResources != 3 || result.passCount != 3 || result.failCount != 0 || result.skipCount != 0) { error "counts are ${result}" }
+        if (result.moduleVersion != '9.9.9') { error "moduleVersion is ${result.moduleVersion}" }
+        if (!result.reportPath.endsWith('/dsc-reports')) { error "reportPath is ${result.reportPath}" }
+        if (!fileExists('dsc-reports/result.json') || !fileExists('dsc-reports/outputs.env')) { error 'the result files are missing' }
+
+        def call = readFile('call.json')
+        if (!call.contains('"Mode": "Set"')) { error "the runner was not called with Mode Set: ${call}" }
+        if (!call.contains("${pwd()}/config")) { error "the runner was not given the workspace's config directory: ${call}" }
+        echo 'CASE-OK'
+    }
+}

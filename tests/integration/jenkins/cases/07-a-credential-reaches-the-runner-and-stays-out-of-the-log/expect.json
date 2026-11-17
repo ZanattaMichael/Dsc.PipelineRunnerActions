@@ -1,0 +1,10 @@
+{
+  "result": "SUCCESS",
+  "contains": [
+    "CASE-OK",
+    "source-token\\s+\\(set, hidden\\)"
+  ],
+  "notContains": [
+    "super-secret-value-123"
+  ]
+}

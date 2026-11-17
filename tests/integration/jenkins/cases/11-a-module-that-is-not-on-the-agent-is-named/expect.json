@@ -1,0 +1,10 @@
+{
+  "result": "FAILURE",
+  "contains": [
+    "Required module\\(s\\) are not installed on the agent: NotOnThisAgent",
+    "exit code 1, status Aborted"
+  ],
+  "notContains": [
+    "NOT-REACHED"
+  ]
+}

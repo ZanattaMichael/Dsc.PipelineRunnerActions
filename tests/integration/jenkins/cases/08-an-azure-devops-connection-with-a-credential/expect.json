@@ -1,0 +1,10 @@
+{
+  "result": "SUCCESS",
+  "contains": [
+    "CASE-OK",
+    "azure-devops-token\\s+\\(set, hidden\\)"
+  ],
+  "notContains": [
+    "a{52}"
+  ]
+}

@@ -191,6 +191,17 @@ jobs:
           name: azure-devops-extension-ci
           path: dist/*.vsix
 
+  jenkins-integration:
+    # A real Jenkins controller in Docker loads the shared library and runs pipelines that call
+    # the step. See tests/integration/jenkins/Invoke-JenkinsIntegrationTests.ps1.
+    name: Jenkins integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the cases in Jenkins
+        shell: pwsh
+        run: ./tests/integration/jenkins/Invoke-JenkinsIntegrationTests.ps1
+
   static-checks:
     name: Static checks
     runs-on: ubuntu-latest

@@ -90,7 +90,7 @@ variable in CircleCI, and a credentials ID in Jenkins.
 
 | Output | Description |
 | --- | --- |
-| `status` | Overall run status: Completed, PartialSuccess, Failed or Aborted. |
+| `status` | Overall run status: Completed, PartialSuccess, Failed or Aborted; or InvalidSettings when the settings were not valid and nothing ran. |
 | `total-resources` | Number of resources evaluated. |
 | `pass-count` | Number of resources that passed. |
 | `fail-count` | Number of resources that failed (in Test mode this includes drift). |

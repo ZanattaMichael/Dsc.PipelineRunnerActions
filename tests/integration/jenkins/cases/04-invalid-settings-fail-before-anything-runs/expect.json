@@ -1,0 +1,12 @@
+{
+  "result": "FAILURE",
+  "contains": [
+    "'mode' is 'Apply'\\. Allowed values: Test, Set, DryRun",
+    "'engine' is 'DscV4'",
+    "2 problem\\(s\\) must be fixed",
+    "exit code 2, status InvalidSettings"
+  ],
+  "notContains": [
+    "NOT-REACHED"
+  ]
+}
