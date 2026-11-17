@@ -1,0 +1,25 @@
+{
+  "description": "On an agent without PowerShell 7 the step fails with an error that says what to install.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "hidePowerShell": true,
+  "inputs": {
+    "configurationPath": "config",
+    "skipModuleInstall": "true"
+  },
+  "expect": {
+    "result": "Failed",
+    "exitCode": 1,
+    "notCalled": true,
+    "issues": [
+      {
+        "type": "error",
+        "matches": "PowerShell 7 \\(pwsh\\) is required on the agent and was not found on PATH"
+      }
+    ]
+  }
+}

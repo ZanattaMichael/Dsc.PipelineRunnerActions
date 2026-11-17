@@ -1,0 +1,28 @@
+{
+  "description": "An input left as $(Name) because the variable does not exist is refused; it is never used as the value.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "inputs": {
+    "configurationRepositoryUrl": "https://example.test/platform/config.git",
+    "sourceToken": "$(NotDefinedAnywhere)",
+    "skipModuleInstall": "true"
+  },
+  "expect": {
+    "result": "Failed",
+    "exitCode": 1,
+    "notCalled": true,
+    "issues": [
+      {
+        "type": "error",
+        "matches": "Input 'sourceToken' is \\$\\(NotDefinedAnywhere\\), which means that pipeline variable is not defined"
+      }
+    ],
+    "notContains": [
+      "== Dsc\\.PipelineRunner"
+    ]
+  }
+}

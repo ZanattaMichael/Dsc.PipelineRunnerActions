@@ -1,0 +1,37 @@
+{
+  "description": "A secret variable passed as an input reaches the module as a SecureString and is never written to the log or the reports.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "secretVariables": {
+    "ConfigRepoToken": "super-secret-value-123"
+  },
+  "inputs": {
+    "configurationRepositoryUrl": "https://example.test/platform/config.git",
+    "configurationRevision": "3f1c9a0e5b7d2148ab6c0f39e7d5412ca8b09e6f",
+    "sourceToken": "$(ConfigRepoToken)",
+    "skipModuleInstall": "true"
+  },
+  "expect": {
+    "result": "Succeeded",
+    "exitCode": 0,
+    "outputs": {
+      "status": "Completed"
+    },
+    "call": {
+      "Source": "Git",
+      "SourceContext.Url": "https://example.test/platform/config.git",
+      "SourceContext.TokenIsSecureString": true,
+      "ConfigurationRevision": "3f1c9a0e5b7d2148ab6c0f39e7d5412ca8b09e6f"
+    },
+    "contains": [
+      "source-token\\s+\\(set, hidden\\)"
+    ],
+    "notContains": [
+      "super-secret-value-123"
+    ]
+  }
+}

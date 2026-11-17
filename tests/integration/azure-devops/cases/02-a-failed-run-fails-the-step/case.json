@@ -1,0 +1,29 @@
+{
+  "description": "A run that ends Failed fails the step, and still sets the output variables.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules",
+    "DSCPR_TEST_STATUS": "Failed"
+  },
+  "inputs": {
+    "configurationPath": "config",
+    "skipModuleInstall": "true"
+  },
+  "expect": {
+    "result": "Failed",
+    "exitCode": 1,
+    "outputs": {
+      "status": "Failed",
+      "fail_count": "1",
+      "pass_count": "2"
+    },
+    "issues": [
+      {
+        "type": "error",
+        "matches": "'fail-on-error' is true, so this step fails"
+      }
+    ]
+  }
+}

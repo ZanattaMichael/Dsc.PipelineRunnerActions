@@ -215,44 +215,66 @@ jobs:
           if ($env:STRIPPED_OUTCOME -ne 'failure' -or $env:STRIPPED_STATUS -ne 'InvalidSettings') { throw 'A configuration without its required policy was not refused before the run.' }
 
   azure-devops-task:
-    name: Azure DevOps task and extension
+    # The packaged task (what would be published) is run the way an Azure Pipelines agent runs a
+    # Node task, once per case. See tests/integration/azure-devops/README.md.
+    name: Azure DevOps task and extension (${{ matrix.os }}, Node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, node: 20 }
+          - { os: ubuntu-latest, node: 24 }
+          - { os: windows-latest, node: 20 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Unit tests of the task entry point and of the test harness
+        run: node --test azure-devops/tests/index.test.js tests/integration/azure-devops/agent.test.js tests/integration/azure-devops/live/pipeline.test.js
+      - name: Package the extension
+        shell: pwsh
+        run: |
+          ./tools/Sync-Core.ps1 -AzureDevOps
+          ./tools/Set-AzureDevOpsVersion.ps1 -Version 0.0.1
+          npx --yes tfx-cli@0 extension create --root azure-devops --manifest-globs vss-extension.json --output-path dist
+          if ($LASTEXITCODE -ne 0) { throw 'tfx could not package the extension' }
+          Get-ChildItem dist
+      - name: Run the cases against the packaged task
+        shell: pwsh
+        run: |
+          node tests/integration/azure-devops/run-cases.js --vsix (Get-ChildItem dist/*.vsix).FullName
+          if ($LASTEXITCODE -ne 0) { throw 'an Azure DevOps integration case failed' }
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 20
+        with:
+          name: azure-devops-extension-ci
+          path: dist/*.vsix
+
+  azure-devops-live:
+    # The same cases on a real agent in a real Azure DevOps organization. Runs only where the
+    # organization is configured (tests/integration/azure-devops/README.md); otherwise skipped.
+    name: Azure DevOps live
+    if: vars.AZURE_DEVOPS_TEST_ORG != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
+    # One run at a time: every run uploads the test copy of the task under the same id.
+    concurrency:
+      group: azure-devops-live
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Unit tests of the task entry point
-        run: node --test azure-devops/tests/index.test.js
-      - name: Run the task entry point
-        shell: pwsh
-        run: |
-          ./tools/Sync-Core.ps1 -AzureDevOps
-          $env:PSModulePath = (Join-Path $PWD 'tests/fixtures/modules') + [IO.Path]::PathSeparator + $env:PSModulePath
-          $env:DSCPR_TEST_CALL_FILE = Join-Path $env:RUNNER_TEMP 'call.json'
-          # The agent passes inputs as INPUT_<NAME>.
-          $env:INPUT_CONFIGURATIONPATH = 'tests/fixtures/config'
-          $env:INPUT_SKIPMODULEINSTALL = 'true'
-          $log = node azure-devops/DscPipelineRunnerTask/index.js
-          $log
-          if ($LASTEXITCODE -ne 0) { throw "the task exited $LASTEXITCODE" }
-          if (-not ($log -match '##vso\[task\.setvariable variable=status;isOutput=true\]Completed')) { throw 'the status output variable was not set' }
-
-          $env:INPUT_SOURCETOKEN = '$(NotDefined)'
-          node azure-devops/DscPipelineRunnerTask/index.js
-          if ($LASTEXITCODE -eq 0) { throw 'an undefined secret variable was accepted' }
-          exit 0
-      - name: Package the extension
-        shell: pwsh
-        run: |
-          ./tools/Set-AzureDevOpsVersion.ps1 -Version 0.0.1
-          npx --yes tfx-cli@0 extension create --root azure-devops --manifest-globs vss-extension.json --output-path dist
-          if ($LASTEXITCODE -ne 0) { throw 'tfx could not package the extension' }
-          Get-ChildItem dist
-      - uses: actions/upload-artifact@v4
-        with:
-          name: azure-devops-extension-ci
-          path: dist/*.vsix
+      - name: Run the cases in Azure DevOps
+        env:
+          DSCPR_AZDO_ORG: ${{ vars.AZURE_DEVOPS_TEST_ORG }}
+          DSCPR_AZDO_PROJECT: ${{ vars.AZURE_DEVOPS_TEST_PROJECT }}
+          DSCPR_AZDO_POOL: ${{ vars.AZURE_DEVOPS_TEST_POOL }}
+          DSCPR_AZDO_VM_IMAGE: ${{ vars.AZURE_DEVOPS_TEST_VM_IMAGE }}
+          DSCPR_AZDO_TOKEN: ${{ secrets.AZURE_DEVOPS_TEST_TOKEN }}
+        run: node tests/integration/azure-devops/live/run-live.js
 
   jenkins-integration:
     # A real Jenkins controller in Docker loads the shared library and runs pipelines that call
@@ -277,7 +299,7 @@ jobs:
           for path in ['action.yml', 'circleci/orb.yml', 'templates/dsc-pipeline-runner.yml', '.gitlab-ci.yml'] + glob.glob('examples/**/*.yml', recursive=True) + glob.glob('.github/workflows/*.yml'):
               list(yaml.safe_load_all(open(path)))
               print('ok', path)
-          for path in ['core/settings.json', 'azure-devops/vss-extension.json', 'azure-devops/DscPipelineRunnerTask/task.json']:
+          for path in ['core/settings.json', 'azure-devops/vss-extension.json', 'azure-devops/DscPipelineRunnerTask/task.json'] + glob.glob('tests/integration/azure-devops/cases/*/case.json'):
               json.load(open(path))
               print('ok', path)
           PY

@@ -1,0 +1,48 @@
+{
+  "description": "Every kind of input (pickList, boolean, multiLine, string) and a $(variable) macro reach the module.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "variables": {
+    "ReportFolder": "out/reports",
+    "DscEngineVersion": "3.1.0"
+  },
+  "inputs": {
+    "configurationPath": "config",
+    "mode": "DryRun",
+    "engine": "DscV3",
+    "engineVersion": "$(DscEngineVersion)",
+    "reportPath": "$(ReportFolder)",
+    "keepTemporaryDirectory": "true",
+    "verbose": "true",
+    "resourceModules": "DscprTestDependency@1.0.0",
+    "skipModuleInstall": "true"
+  },
+  "expect": {
+    "result": "Succeeded",
+    "exitCode": 0,
+    "outputs": {
+      "status": "Completed",
+      "report_path": {
+        "matches": "[\\\\/]out[\\\\/]reports$"
+      }
+    },
+    "call": {
+      "Mode": "DryRun",
+      "Engine": "DscV3",
+      "EngineVersion": "3.1.0",
+      "KeepTemporaryDirectory": true,
+      "Verbose": true
+    },
+    "files": [
+      "out/reports/outputs.env"
+    ],
+    "contains": [
+      "engine\\s+DscV3\\s+set",
+      "resource-modules\\s+DscprTestDependency@1\\.0\\.0"
+    ]
+  }
+}
