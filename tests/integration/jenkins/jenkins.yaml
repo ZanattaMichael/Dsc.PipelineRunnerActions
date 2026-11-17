@@ -5,6 +5,10 @@ jenkins:
   authorizationStrategy: unsecured
 
 unclassified:
+  # The Jenkins CLI, which the test driver uses to create and run jobs, refuses to work until
+  # the controller knows its own URL.
+  location:
+    url: http://localhost:8080/
   globalLibraries:
     libraries:
       # The library under test, exactly as docs/jenkins.md tells users to register it:

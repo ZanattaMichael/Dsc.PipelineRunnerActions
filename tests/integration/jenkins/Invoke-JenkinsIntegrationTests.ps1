@@ -83,7 +83,13 @@ try {
     }
     Invoke-Native 'fetching the Jenkins CLI' { docker exec $container curl --silent --fail --output /tmp/cli.jar http://localhost:8080/jnlpJars/jenkins-cli.jar }
     Write-Host '== Jenkins is ready'
-    docker exec $container java -jar /tmp/cli.jar -s http://localhost:8080 version
+    Invoke-Native 'the Jenkins CLI' { docker exec $container java -jar /tmp/cli.jar -s http://localhost:8080 version }
+    # Fail early, and clearly, if configuration as code did not register the library under test.
+    $libraries = docker exec $container curl --silent --fail 'http://localhost:8080/manage/configuration-as-code/export' --request POST 2>$null | Out-String
+    if ($libraries -notmatch 'dsc-pipeline-runner') {
+        Write-Host $libraries
+        throw 'Configuration as code did not register the dsc-pipeline-runner library.'
+    }
 
     # 3. The cases.
     $results = [System.Collections.Generic.List[object]]::new()
