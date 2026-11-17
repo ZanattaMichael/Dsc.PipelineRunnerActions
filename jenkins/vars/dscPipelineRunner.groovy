@@ -31,6 +31,8 @@ import groovy.transform.Field
     [name: 'azureDevopsOrganization', env: 'DSCPR_AZURE_DEVOPS_ORGANIZATION', secret: false],
     [name: 'azureDevopsAuthentication', env: 'DSCPR_AZURE_DEVOPS_AUTHENTICATION', secret: false],
     [name: 'azureDevopsToken', env: 'DSCPR_AZURE_DEVOPS_TOKEN', secret: true],
+    [name: 'policyPath', env: 'DSCPR_POLICY_PATH', secret: false],
+    [name: 'requirePolicy', env: 'DSCPR_REQUIRE_POLICY', secret: false],
     [name: 'moduleVersion', env: 'DSCPR_MODULE_VERSION', secret: false],
     [name: 'allowPrerelease', env: 'DSCPR_ALLOW_PRERELEASE', secret: false],
     [name: 'moduleRepository', env: 'DSCPR_MODULE_REPOSITORY', secret: false],

@@ -1,0 +1,11 @@
+parameters: {}
+
+variables:
+  Greeting: hello from the platform
+
+resources:
+
+  - name: Platform echo
+    type: Microsoft.DSC.Debug/Echo
+    properties:
+      output: $(variables('Greeting'))

@@ -1,0 +1,16 @@
+# Beside Datum.yml, never merged. See the module's docs/capability-policy.md.
+PolicyVersion: 1
+Default: Deny
+Layers:
+  - Name: Platform
+    Paths: [ 'Datum.yml', 'Platform/**' ]
+    Capabilities:
+      Targets: [ '*' ]
+      Engines: [ '*' ]
+      ExecutionScripts: true
+      DatumScriptBlocks: true
+  - Name: Teams
+    Paths: [ 'Projects/**' ]
+    Capabilities:
+      Targets: [ Local ]
+      Engines: [ DscV2, DscV3 ]

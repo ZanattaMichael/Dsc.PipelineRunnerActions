@@ -151,6 +151,69 @@ jobs:
           if ($env:STATUS -ne 'Completed') { throw "status output is '$env:STATUS'" }
           if ([int]$env:TOTAL -lt 1) { throw 'no resource was evaluated' }
 
+  capability-policy:
+    # The capability policy end to end, through the action and the real module (built from the
+    # module commit that reads Policy.yml beside Datum.yml): a configuration that complies runs,
+    # and the same configuration with a team resource on a forbidden Target is refused.
+    name: Capability policy (real module)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: A configuration that complies with its Policy.yml
+        id: complies
+        uses: ./
+        with:
+          configuration-path: tests/fixtures/policy-config
+          mode: DryRun
+          engine: DscV3
+          require-policy: 'true'
+          module-source: Repository
+          module-source-ref: af026c23d6b2febad6ecff06d357883683e86850
+      - name: Break the policy
+        shell: pwsh
+        run: Copy-Item tests/fixtures/policy-config-violating/App.yml tests/fixtures/policy-config/Projects/Present/App.yml -Force
+      - name: The same configuration, now breaking the policy
+        id: violates
+        continue-on-error: true
+        uses: ./
+        with:
+          configuration-path: tests/fixtures/policy-config
+          mode: DryRun
+          engine: DscV3
+          require-policy: 'true'
+          report-path: dsc-reports-violating
+          module-source: Repository
+          module-source-ref: af026c23d6b2febad6ecff06d357883683e86850
+      - name: Remove the policy
+        shell: pwsh
+        run: Remove-Item tests/fixtures/policy-config/Policy.yml
+      - name: The configuration with its policy removed, where one is required
+        id: stripped
+        continue-on-error: true
+        uses: ./
+        with:
+          configuration-path: tests/fixtures/policy-config
+          mode: DryRun
+          engine: DscV3
+          require-policy: 'true'
+          report-path: dsc-reports-stripped
+          module-source: Repository
+          module-source-ref: af026c23d6b2febad6ecff06d357883683e86850
+      - name: Check the three outcomes
+        shell: pwsh
+        env:
+          COMPLIES_STATUS: ${{ steps.complies.outputs.status }}
+          COMPLIES_TOTAL: ${{ steps.complies.outputs.total-resources }}
+          VIOLATES_OUTCOME: ${{ steps.violates.outcome }}
+          VIOLATES_STATUS: ${{ steps.violates.outputs.status }}
+          STRIPPED_OUTCOME: ${{ steps.stripped.outcome }}
+          STRIPPED_STATUS: ${{ steps.stripped.outputs.status }}
+        run: |
+          "complies: $env:COMPLIES_STATUS ($env:COMPLIES_TOTAL resources); violates: $env:VIOLATES_OUTCOME / $env:VIOLATES_STATUS; stripped: $env:STRIPPED_OUTCOME / $env:STRIPPED_STATUS"
+          if ($env:COMPLIES_STATUS -ne 'Completed' -or [int]$env:COMPLIES_TOTAL -ne 2) { throw 'The compliant configuration did not complete with its two resources.' }
+          if ($env:VIOLATES_OUTCOME -ne 'failure' -or $env:VIOLATES_STATUS -notin 'Aborted', 'Failed') { throw 'The configuration that breaks the policy was not refused.' }
+          if ($env:STRIPPED_OUTCOME -ne 'failure' -or $env:STRIPPED_STATUS -ne 'InvalidSettings') { throw 'A configuration without its required policy was not refused before the run.' }
+
   azure-devops-task:
     name: Azure DevOps task and extension
     runs-on: ubuntu-latest

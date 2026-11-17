@@ -289,6 +289,30 @@ if (-not $settings['module-version'] -and -not $skipInstall -and -not $fromSourc
     $warnings.Add("'module-version' is empty, so the newest stable Dsc.PipelineRunner is used unless one is already installed. Pin an exact version.")
 }
 
+# Capability policy (preview). The policy is normally Policy.yml at the root of the configuration,
+# beside Datum.yml, and the runner finds it there itself; policy-path names another file.
+$policyPath = $null
+$policyInConfiguration = $null
+if ($settings['policy-path']) {
+    $policyPath = [System.IO.Path]::GetFullPath($settings['policy-path'], (Get-Location).Path)
+    $policyExists = Test-Path -LiteralPath $policyPath -PathType Leaf
+    Add-Requirement 'Capability policy file (policy-path)' $policyExists $policyPath
+    if (-not $policyExists) { $problems.Add("'policy-path' does not exist or is not a file: $policyPath.") }
+}
+if ($null -ne $configurationPath -and (Test-Path -LiteralPath $configurationPath -PathType Container)) {
+    $policyInConfiguration = 'Policy.yml', 'Policy.yaml' | ForEach-Object { Join-Path $configurationPath $_ } | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if ($policyInConfiguration -and -not $policyPath) {
+        Add-Requirement 'Capability policy (Policy.yml beside Datum.yml)' $true $policyInConfiguration
+    }
+    elseif (-not $policyInConfiguration -and -not $policyPath -and (Test-Flag 'require-policy')) {
+        Add-Requirement 'Capability policy (required)' $false 'no Policy.yml beside Datum.yml, and no policy-path'
+        $problems.Add("'require-policy' is true, but the configuration has no Policy.yml beside its Datum.yml and 'policy-path' is empty.")
+    }
+}
+# Whether this run depends on the runner enforcing a policy. If it does, a module that cannot
+# enforce one must stop the run rather than ignore the policy.
+$policyExpected = [bool]$policyPath -or [bool]$policyInConfiguration -or (Test-Flag 'require-policy')
+
 # Report directory.
 $reportPath = [System.IO.Path]::GetFullPath($settings['report-path'], (Get-Location).Path)
 try {
@@ -599,6 +623,10 @@ try {
     Write-StepGroup -End
 
     $runnerCommand = Get-Command -Name Invoke-DscRunner -Module Dsc.PipelineRunner
+    if ($policyExpected -and -not $runnerCommand.Parameters.ContainsKey('PolicyPath')) {
+        $reason = if ($policyPath) { "'policy-path' is set" } elseif ($policyInConfiguration) { "the configuration has a Policy.yml" } else { "'require-policy' is true" }
+        throw "A capability policy is expected ($reason), but Dsc.PipelineRunner $($result.ModuleVersion) cannot enforce one and would ignore it. Set 'module-version' to a release that supports capability policies, or build a newer commit with 'module-source: Repository'."
+    }
     if ($mode -eq 'DryRun' -and 'DryRun' -notin $runnerCommand.Parameters['Mode'].Attributes.Where({ $_ -is [ValidateSet] }).ValidValues) {
         throw "'mode' is DryRun, but Dsc.PipelineRunner $($result.ModuleVersion) does not support it. Set 'module-version' to a release that does, or build a newer commit with 'module-source: Repository'."
     }
@@ -611,6 +639,8 @@ try {
     if ($settings['engine-version']) { $runArguments.EngineVersion = $settings['engine-version'] }
     if (Test-Flag 'keep-temporary-directory') { $runArguments.KeepTemporaryDirectory = $true }
     if (Test-Flag 'verbose') { $runArguments.Verbose = $true }
+    if ($policyPath) { $runArguments.PolicyPath = $policyPath }
+    if (Test-Flag 'require-policy') { $runArguments.RequirePolicy = $true }
 
     if ($hasPath) {
         $runArguments.ConfigurationSourcePath = $configurationPath

@@ -1,0 +1,27 @@
+# A real configuration with a capability policy, for the CI job that builds Dsc.PipelineRunner
+# from source and runs it on Linux (so the precedence entries use '/', and the engine is DSC v3).
+ResolutionPrecedence:
+  - Projects/$($Node.ProjectPresence)/$($Node.Project)
+  - Platform/Baseline
+
+DatumHandlersThrowOnError: true
+
+default_lookup_options: MostSpecific
+
+PipelineRunnerSettings:
+  ConfigurationVersion: 0.5
+  PipelineRunnerVersion: 1.1.0
+  Engine: DscV3
+
+DatumHandlers:
+  Datum.InvokeCommand::InvokeCommand:
+    SkipDuringLoad: true
+
+lookup_options:
+  variables:
+    merge_hash_array: deep
+  resources:
+    merge_hash_array: UniqueKeyValTuples
+    merge_options:
+      tuple_keys:
+        - name

@@ -1,0 +1,11 @@
+parameters: {}
+
+variables:
+  TeamGreeting: hello from the team
+
+resources:
+
+  - name: Team echo
+    type: Microsoft.DSC.Debug/Echo
+    properties:
+      output: $(variables('TeamGreeting'))

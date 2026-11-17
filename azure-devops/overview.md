@@ -45,6 +45,7 @@ prints the effective value of every input (secrets only as set or not set).
 | `reportPath` | `dsc-reports` | Where reports are written. |
 | `connect`, `azureDevopsOrganization`, `azureDevopsAuthentication`, `azureDevopsToken` | `None` | Open an Azure DevOps session, for configurations that manage Azure DevOps. |
 | `moduleVersion`, `allowPrerelease`, `moduleRepository`, `resourceModules`, `skipModuleInstall` | | What to install, and from where. |
+| `policyPath`, `requirePolicy` | | Preview. A capability policy: a `Policy.yml` beside `Datum.yml` is enforced automatically; these name another file or insist that one exists. |
 | `moduleSource`, `moduleSourceRepository`, `moduleSourceRef` | `Gallery` | Or: build and run the module from its source repository at a tag, branch or commit. |
 | `keepTemporaryDirectory`, `verbose` | `false` | Diagnostics. |
 

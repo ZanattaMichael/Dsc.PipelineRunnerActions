@@ -84,6 +84,14 @@ commands:
         description: 'Name of the environment variable that holds this secret. Azure DevOps personal access token (20 to 120 letters and digits). Required when connect is AzureDevOps, authentication is PAT and mode is not DryRun. Define the variable in a context or the project settings.'
         type: env_var_name
         default: DSCPR_AZURE_DEVOPS_TOKEN
+      policy-path:
+        description: 'Preview. A capability policy file that says what each layer of the configuration may use, relative to the working directory. Usually not needed: a Policy.yml at the root of the configuration, beside Datum.yml, is used automatically. A file named here wins over it. Needs a Dsc.PipelineRunner release newer than 1.2.1.'
+        type: string
+        default: ''
+      require-policy:
+        description: 'Preview. Fail the step when the configuration has no capability policy (no Policy.yml beside Datum.yml and no policy-path), so removing the policy cannot switch enforcement off unnoticed. Needs a Dsc.PipelineRunner release newer than 1.2.1.'
+        type: boolean
+        default: false
       module-version:
         description: 'Exact Dsc.PipelineRunner version to install, for example 1.2.1. Pinning is recommended. Empty uses a version already on the agent, otherwise installs the newest stable release.'
         type: string
@@ -153,6 +161,8 @@ commands:
             DSCPR_AZURE_DEVOPS_ORGANIZATION: "<< parameters.azure-devops-organization >>"
             DSCPR_AZURE_DEVOPS_AUTHENTICATION: "<< parameters.azure-devops-authentication >>"
             DSCPR_AZURE_DEVOPS_TOKEN_VARIABLE: "<< parameters.azure-devops-token-variable >>"
+            DSCPR_POLICY_PATH: "<< parameters.policy-path >>"
+            DSCPR_REQUIRE_POLICY: "<< parameters.require-policy >>"
             DSCPR_MODULE_VERSION: "<< parameters.module-version >>"
             DSCPR_ALLOW_PRERELEASE: "<< parameters.allow-prerelease >>"
             DSCPR_MODULE_REPOSITORY: "<< parameters.module-repository >>"
@@ -233,6 +243,14 @@ jobs:
         description: 'Name of the environment variable that holds this secret. Azure DevOps personal access token (20 to 120 letters and digits). Required when connect is AzureDevOps, authentication is PAT and mode is not DryRun. Define the variable in a context or the project settings.'
         type: env_var_name
         default: DSCPR_AZURE_DEVOPS_TOKEN
+      policy-path:
+        description: 'Preview. A capability policy file that says what each layer of the configuration may use, relative to the working directory. Usually not needed: a Policy.yml at the root of the configuration, beside Datum.yml, is used automatically. A file named here wins over it. Needs a Dsc.PipelineRunner release newer than 1.2.1.'
+        type: string
+        default: ''
+      require-policy:
+        description: 'Preview. Fail the step when the configuration has no capability policy (no Policy.yml beside Datum.yml and no policy-path), so removing the policy cannot switch enforcement off unnoticed. Needs a Dsc.PipelineRunner release newer than 1.2.1.'
+        type: boolean
+        default: false
       module-version:
         description: 'Exact Dsc.PipelineRunner version to install, for example 1.2.1. Pinning is recommended. Empty uses a version already on the agent, otherwise installs the newest stable release.'
         type: string
@@ -295,6 +313,8 @@ jobs:
           azure-devops-organization: << parameters.azure-devops-organization >>
           azure-devops-authentication: << parameters.azure-devops-authentication >>
           azure-devops-token-variable: << parameters.azure-devops-token-variable >>
+          policy-path: << parameters.policy-path >>
+          require-policy: << parameters.require-policy >>
           module-version: << parameters.module-version >>
           allow-prerelease: << parameters.allow-prerelease >>
           module-repository: << parameters.module-repository >>

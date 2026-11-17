@@ -57,7 +57,7 @@ Details, including how to install each item: [docs/requirements.md](docs/require
 
 ## Settings
 
-There are 23 settings in five groups. The most used:
+There are 25 settings in six groups. The most used:
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
@@ -68,6 +68,7 @@ There are 23 settings in five groups. The most used:
 | `fail-on-error` | `true` | Fail the step when the run failed. In `Test` mode drift is a failure. |
 | `report-path` | `dsc-reports` | Where the reports are written. |
 | `module-version` | (empty) | Exact Dsc.PipelineRunner version. Pin it. |
+| `policy-path`, `require-policy` | (empty), `false` | Preview. A [capability policy](docs/requirements.md#capability-policy-preview): a `Policy.yml` beside `Datum.yml` is enforced automatically; these name another file or insist that one exists. |
 | `module-source`, `module-source-ref` | `Gallery` | Or: build and run the module from its [source repository](https://github.com/ZanattaMichael/Dsc.PipelineRunner) at a tag, branch or commit. |
 | `resource-modules` | (empty) | DSC resource modules to install, as `Name@Version`. |
 

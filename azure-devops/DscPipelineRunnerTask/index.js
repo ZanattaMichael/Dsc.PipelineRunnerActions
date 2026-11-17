@@ -23,6 +23,8 @@ const SETTINGS = [
   ['azureDevopsOrganization', 'DSCPR_AZURE_DEVOPS_ORGANIZATION', false],
   ['azureDevopsAuthentication', 'DSCPR_AZURE_DEVOPS_AUTHENTICATION', false],
   ['azureDevopsToken', 'DSCPR_AZURE_DEVOPS_TOKEN', true],
+  ['policyPath', 'DSCPR_POLICY_PATH', false],
+  ['requirePolicy', 'DSCPR_REQUIRE_POLICY', false],
   ['moduleVersion', 'DSCPR_MODULE_VERSION', false],
   ['allowPrerelease', 'DSCPR_ALLOW_PRERELEASE', false],
   ['moduleRepository', 'DSCPR_MODULE_REPOSITORY', false],

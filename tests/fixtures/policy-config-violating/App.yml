@@ -1,0 +1,16 @@
+# Copied over policy-config/Projects/Present/App.yml by the CI job: a team resource on a Target
+# its layer may not use. The run must be refused.
+parameters: {}
+
+variables:
+  TeamGreeting: hello from the team
+
+resources:
+
+  - name: Team echo over SSH
+    type: Microsoft.DSC.Debug/Echo
+    target:
+      action: SSH
+      computerName: somewhere.example.test
+    properties:
+      output: $(variables('TeamGreeting'))

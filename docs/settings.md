@@ -23,6 +23,8 @@ setting at the start of each run (secrets are shown only as set or not set).
 | azure-devops-organization | `azure-devops-organization` | `azureDevopsOrganization` | `azure_devops_organization` | `DSCPR_AZURE_DEVOPS_ORGANIZATION` |
 | azure-devops-authentication | `azure-devops-authentication` | `azureDevopsAuthentication` | `azure_devops_authentication` | `DSCPR_AZURE_DEVOPS_AUTHENTICATION` |
 | azure-devops-token (secret) | `azure-devops-token` (GitHub), `azure-devops-token-variable` (CircleCI) | `azureDevopsToken` (Azure DevOps), `azureDevopsTokenCredentialsId` (Jenkins) | CI/CD variable `DSCPR_AZURE_DEVOPS_TOKEN` | `DSCPR_AZURE_DEVOPS_TOKEN` |
+| policy-path | `policy-path` | `policyPath` | `policy_path` | `DSCPR_POLICY_PATH` |
+| require-policy | `require-policy` | `requirePolicy` | `require_policy` | `DSCPR_REQUIRE_POLICY` |
 | module-version | `module-version` | `moduleVersion` | `module_version` | `DSCPR_MODULE_VERSION` |
 | allow-prerelease | `allow-prerelease` | `allowPrerelease` | `allow_prerelease` | `DSCPR_ALLOW_PRERELEASE` |
 | module-repository | `module-repository` | `moduleRepository` | `module_repository` | `DSCPR_MODULE_REPOSITORY` |
@@ -65,6 +67,13 @@ variable in CircleCI, and a credentials ID in Jenkins.
 | `azure-devops-organization` | (empty) | any | Azure DevOps organization name. Required when connect is AzureDevOps. |
 | `azure-devops-authentication` | `PAT` | `PAT`, `ManagedIdentity` | How to authenticate to Azure DevOps. PAT needs azure-devops-token. ManagedIdentity needs an agent that runs with an Azure managed identity. |
 | `azure-devops-token` (secret) | (empty) | any | Azure DevOps personal access token (20 to 120 letters and digits). Required when connect is AzureDevOps, authentication is PAT and mode is not DryRun. Supply it from the platform's secret store. |
+
+## Capability policy
+
+| Setting | Default | Allowed values | Description |
+| --- | --- | --- | --- |
+| `policy-path` | (empty) | any | Preview. A capability policy file that says what each layer of the configuration may use, relative to the working directory. Usually not needed: a Policy.yml at the root of the configuration, beside Datum.yml, is used automatically. A file named here wins over it. Needs a Dsc.PipelineRunner release newer than 1.2.1. |
+| `require-policy` | `false` | `true`, `false` | Preview. Fail the step when the configuration has no capability policy (no Policy.yml beside Datum.yml and no policy-path), so removing the policy cannot switch enforcement off unnoticed. Needs a Dsc.PipelineRunner release newer than 1.2.1. |
 
 ## Installation
 
