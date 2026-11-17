@@ -417,8 +417,18 @@ function Install-StepModuleFromSource {
     # so neither the URL nor the ref can be read as a git option.
     & git clone --quiet --no-checkout -- $Repository $work 2>&1 | ForEach-Object { Write-Host "    $_" }
     if ($LASTEXITCODE -ne 0) { throw "Could not clone the module source repository (git exit code $LASTEXITCODE). Check 'module-source-repository' and the agent's access to it." }
-    & git -C $work checkout --quiet --detach $Ref -- 2>&1 | ForEach-Object { Write-Host "    $_" }
-    if ($LASTEXITCODE -ne 0) { throw "Could not check out '$Ref' in the module source repository. Check 'module-source-ref'." }
+    # Resolve the ref to a commit first. A fresh clone has a local branch only for the default
+    # branch; any other branch exists as origin/<name>, which a detached checkout does not look for.
+    $commit = $null
+    foreach ($candidate in "$Ref^{commit}", "origin/$Ref^{commit}") {
+        # Not piped into Select-Object: stopping the pipeline early leaves $LASTEXITCODE unset.
+        $resolved = @(& git -C $work rev-parse --verify --quiet --end-of-options $candidate 2>$null)
+        if ($LASTEXITCODE -eq 0 -and $resolved.Count -gt 0) { $commit = ([string]$resolved[0]).Trim(); break }
+    }
+    if (-not $commit) { throw "Could not find '$Ref' in the module source repository. Check 'module-source-ref': it must be a tag, a branch or a commit of that repository." }
+
+    & git -C $work checkout --quiet --detach $commit -- 2>&1 | ForEach-Object { Write-Host "    $_" }
+    if ($LASTEXITCODE -ne 0) { throw "Could not check out '$Ref' ($commit) in the module source repository." }
 
     $head = (& git -C $work rev-parse HEAD | Select-Object -First 1).Trim()
     if ($Ref -match '\A[0-9a-f]{40}\z' -and $head -ne $Ref) {
@@ -453,7 +463,9 @@ function Install-StepModuleFromSource {
 
     # Run-time dependencies. Newer commits carry a pinned installer; use it when it is there.
     $pinnedInstaller = Join-Path $work 'scripts/Install-PinnedModule.ps1'
-    $required = @((Import-PowerShellDataFile -LiteralPath $manifest.FullName).RequiredModules | ForEach-Object { if ($_ -is [string]) { $_ } else { $_.ModuleName } })
+    # A manifest with no RequiredModules must give an empty list, not a list holding $null.
+    $required = @((Import-PowerShellDataFile -LiteralPath $manifest.FullName).RequiredModules |
+            Where-Object { $null -ne $_ } | ForEach-Object { if ($_ -is [string]) { $_ } else { $_.ModuleName } } | Where-Object { $_ })
     if ((Test-Path -LiteralPath $pinnedInstaller) -and $required.Count -gt 0) {
         Write-Host "  Installing the pinned run-time dependencies: $($required -join ', ')."
         & $pinnedInstaller -Name $required | ForEach-Object { Write-Host "    $_" }
@@ -505,6 +517,10 @@ try {
     $callerErrorActionPreference = $global:ErrorActionPreference
     $global:ErrorActionPreference = 'Continue'
     $ErrorActionPreference = 'Continue'
+
+    # If a Dsc.PipelineRunner is already loaded in this session it may not be the one asked for.
+    # Unload it so the import below decides which version runs.
+    Remove-Module -Name 'Dsc.PipelineRunner' -Force -ErrorAction Ignore
 
     $importArguments = @{ Name = 'Dsc.PipelineRunner'; PassThru = $true }
     if ($sourceManifest) { $importArguments.Name = $sourceManifest }

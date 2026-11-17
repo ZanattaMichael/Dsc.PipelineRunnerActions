@@ -46,30 +46,36 @@ function fail(message) {
   process.exitCode = 1;
 }
 
-function readInput(name) {
-  const value = process.env[`INPUT_${name.replace(/[ .]/g, '_').toUpperCase()}`];
-  return value === undefined ? '' : value.trim();
-}
-
-function main() {
-  const env = { ...process.env, DSCPR_PLATFORM: 'azure-devops' };
+// Maps the task inputs in `source` (the agent's environment) onto the DSCPR_* variables.
+// Returns the environment for the step script and the problems found. Pure: it reads only `source`.
+function buildEnvironment(source) {
+  const env = { ...source, DSCPR_PLATFORM: 'azure-devops' };
   const problems = [];
 
   for (const [input, variable, secret] of SETTINGS) {
-    const value = readInput(input);
+    const raw = source[`INPUT_${input.replace(/[ .]/g, '_').toUpperCase()}`];
+    const value = raw === undefined ? '' : String(raw).trim();
     // A pipeline variable that is not defined is not replaced: the input arrives as the literal
     // text $(Name). Left alone, a missing secret would be used as if it were the secret.
     if (/^\$\([^)]+\)$/.test(value)) {
       problems.push(`Input '${input}' is ${value}, which means that pipeline variable is not defined` +
         (secret ? ' (a secret variable must be defined in the pipeline or a variable group, and is only available to the task when passed as an input like this).' : '.'));
+      delete env[variable];
       continue;
     }
     if (value !== '') {
       env[variable] = value;
     } else {
+      // Never let a DSCPR_* variable that happens to be set on the agent stand in for an input.
       delete env[variable];
     }
   }
+
+  return { env, problems };
+}
+
+function main() {
+  const { env, problems } = buildEnvironment(process.env);
 
   if (problems.length > 0) {
     for (const problem of problems) {
@@ -102,4 +108,9 @@ function main() {
   }
 }
 
-main();
+// Run only as the task entry point; the tests load this file to call the functions directly.
+if (require.main === module) {
+  main();
+}
+
+module.exports = { SETTINGS, buildEnvironment, oneLine };

@@ -159,6 +159,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Unit tests of the task entry point
+        run: node --test azure-devops/tests/index.test.js
       - name: Run the task entry point
         shell: pwsh
         run: |

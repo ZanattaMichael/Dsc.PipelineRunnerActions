@@ -24,13 +24,27 @@
 Invoke-Pester -Path tests
 ```
 
-- `tests/Step.tests.ps1` runs the step against a stand-in `Dsc.PipelineRunner` module that records
-  the arguments it received, so it needs no network.
-- `tests/Integrations.tests.ps1` checks that every integration offers every setting with the same
-  default, that secrets are never plain settings, and that generated files are current.
+```bash
+node --test azure-devops/tests/index.test.js
+```
+
+| File | What it covers |
+| --- | --- |
+| `tests/Step.tests.ps1` | The step's main paths: validation in one pass, what is shown, what reaches the runner, outputs and exit codes. |
+| `tests/Step.Behaviour.tests.ps1` | Platform detection and annotations, each setting's validation, warnings, error-preference handling, what is left on disk. |
+| `tests/Step.Install.tests.ps1` | Installing and choosing module versions, retries, `skip-module-install`. `Install-Module` is mocked. |
+| `tests/Step.Source.tests.ps1` | `module-source: Repository`, against a local git repository the test creates: refs, the build, dependencies. |
+| `tests/Integrations.tests.ps1` | Every integration offers every setting with the same default; secrets are never plain settings; generated files are current. |
+| `tests/Examples.tests.ps1` | Every example pipeline and documentation snippet uses only settings that exist; relative links resolve; the GitLab and CircleCI command is shell-agnostic. |
+| `tests/Tools.tests.ps1` | The scripts in `tools/`, run on a copy of the repository, and the shape of `core/settings.json`. |
+| `azure-devops/tests/index.test.js` | The Azure DevOps task entry point: input mapping, undefined variables, a missing PowerShell, `task.json`. |
+
+None of these need the network. The step tests run against stand-in modules in `tests/fixtures/`
+that record the arguments they received; `tests/TestHelpers.ps1` holds the shared helpers.
 
 CI also runs the GitHub Action and the Azure DevOps task entry point for real, packages the
-extension, and runs the action once against the real module from the PowerShell Gallery.
+extension, runs the action once against the real module from the PowerShell Gallery, and builds
+the module from source on Windows and Linux.
 
 ## Adding or changing a setting
 
