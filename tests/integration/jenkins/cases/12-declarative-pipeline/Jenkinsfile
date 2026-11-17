@@ -4,6 +4,8 @@ pipeline {
     agent any
     environment {
         PSModulePath = '/repo/tests/fixtures/modules'
+        // The stand-in Dsc.PipelineRunner records the arguments it was called with here.
+        DSCPR_TEST_CALL_FILE = "${WORKSPACE}/call.json"
     }
     stages {
         stage('Drift') {

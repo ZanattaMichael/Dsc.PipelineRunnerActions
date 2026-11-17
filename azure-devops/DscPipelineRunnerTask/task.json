@@ -295,7 +295,7 @@
   "outputVariables": [
     {
       "name": "status",
-      "description": "Overall run status: Completed, PartialSuccess, Failed or Aborted."
+      "description": "Overall run status: Completed, PartialSuccess, Failed or Aborted; or InvalidSettings when the settings were not valid and nothing ran."
     },
     {
       "name": "total_resources",

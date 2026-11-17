@@ -49,7 +49,7 @@
       "description": "Write the runner's verbose log." }
   ],
   "outputs": [
-    { "name": "status", "description": "Overall run status: Completed, PartialSuccess, Failed or Aborted." },
+    { "name": "status", "description": "Overall run status: Completed, PartialSuccess, Failed or Aborted; or InvalidSettings when the settings were not valid and nothing ran." },
     { "name": "total-resources", "description": "Number of resources evaluated." },
     { "name": "pass-count", "description": "Number of resources that passed." },
     { "name": "fail-count", "description": "Number of resources that failed (in Test mode this includes drift)." },

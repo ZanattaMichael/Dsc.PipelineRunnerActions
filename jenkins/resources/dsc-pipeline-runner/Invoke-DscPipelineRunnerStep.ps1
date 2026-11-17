@@ -306,6 +306,60 @@ if ($mode -eq 'Set') {
 
 #endregion
 
+# Writes the result where each platform and any later step can read it: result.json and
+# outputs.env in the report directory, and the platform's own outputs. Used for a finished run and
+# for settings that were not valid, so a caller always gets a status.
+function Publish-StepResult {
+    param([System.Collections.IDictionary] $Result)
+
+    $resultObject = [pscustomobject]$Result
+    $resultObject | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $reportPath 'result.json') -Encoding utf8
+
+    $outputs = [ordered]@{
+        'status'          = $result.Status
+        'total-resources' = $result.TotalResources
+        'pass-count'      = $result.PassCount
+        'fail-count'      = $result.FailCount
+        'skip-count'      = $result.SkipCount
+        'report-path'     = $result.ReportPath
+        'module-version'  = $result.ModuleVersion
+    }
+
+    # outputs.env: KEY=value, for platforms that load a dotenv file (GitLab reports:dotenv, Jenkins,
+    # CircleCI) and for any script that wants the values.
+    $envLines = foreach ($key in $outputs.Keys) { 'DSCPR_{0}={1}' -f ($key.ToUpperInvariant() -replace '-', '_'), (ConvertTo-SingleLine ([string]$outputs[$key])) }
+    $envLines | Set-Content -LiteralPath (Join-Path $reportPath 'outputs.env') -Encoding utf8
+
+    switch ($Platform) {
+        'github' {
+            if ($env:GITHUB_OUTPUT) {
+                foreach ($key in $outputs.Keys) { Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value ('{0}={1}' -f $key, (ConvertTo-SingleLine ([string]$outputs[$key]))) }
+            }
+            if ($env:GITHUB_STEP_SUMMARY) {
+                $lines = @(
+                    "### Dsc.PipelineRunner: $($result.Status)"
+                    ''
+                    '| Mode | Engine | Resources | Passed | Failed | Skipped | Module |'
+                    '| --- | --- | ---: | ---: | ---: | ---: | --- |'
+                    ('| {0} | {1} | {2} | {3} | {4} | {5} | {6} |' -f $mode, $engine, $result.TotalResources, $result.PassCount, $result.FailCount, $result.SkipCount, $result.ModuleVersion)
+                )
+                Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $lines
+            }
+        }
+        'azure-devops' {
+            foreach ($key in $outputs.Keys) {
+                $name = ($key -replace '-', '_')
+                Write-Host ('##vso[task.setvariable variable={0};isOutput=true]{1}' -f $name, (ConvertTo-SingleLine ([string]$outputs[$key])))
+            }
+        }
+    }
+
+    Write-Host ''
+    Write-Host ("Dsc.PipelineRunner {0}: {1} resource(s), {2} passed, {3} failed, {4} skipped. Reports: {5}" -f `
+            $result.Status, $result.TotalResources, $result.PassCount, $result.FailCount, $result.SkipCount, $reportPath)
+    return $resultObject
+}
+
 #region present requirements and settings ------------------------------------------------------
 
 Write-StepGroup 'Dsc.PipelineRunner: requirements'
@@ -347,7 +401,13 @@ if ($problems.Count -gt 0) {
     Write-Host ("{0} problem(s) must be fixed before Dsc.PipelineRunner can run:" -f $problems.Count)
     foreach ($problem in $problems) { Write-StepProblem -Message $problem }
     $result.Status = 'InvalidSettings'
-    return (Exit-Step -Code 2 -Result ([pscustomobject]$result))
+    # Publish the status where the report directory could be made, so every platform's caller can
+    # read 'InvalidSettings' instead of finding nothing.
+    $invalidResult = [pscustomobject]$result
+    if (Test-Path -LiteralPath $reportPath -PathType Container) {
+        try { $invalidResult = Publish-StepResult -Result $result } catch { Write-StepProblem -Level warning -Message "The result could not be written to ${reportPath}: $($_.Exception.Message)" }
+    }
+    return (Exit-Step -Code 2 -Result $invalidResult)
 }
 
 if ($PreflightOnly) {
@@ -599,51 +659,7 @@ finally {
 
 #region publish result -------------------------------------------------------------------------
 
-$resultObject = [pscustomobject]$result
-$resultObject | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $reportPath 'result.json') -Encoding utf8
-
-$outputs = [ordered]@{
-    'status'          = $result.Status
-    'total-resources' = $result.TotalResources
-    'pass-count'      = $result.PassCount
-    'fail-count'      = $result.FailCount
-    'skip-count'      = $result.SkipCount
-    'report-path'     = $result.ReportPath
-    'module-version'  = $result.ModuleVersion
-}
-
-# outputs.env: KEY=value, for platforms that load a dotenv file (GitLab reports:dotenv, Jenkins,
-# CircleCI) and for any script that wants the values.
-$envLines = foreach ($key in $outputs.Keys) { 'DSCPR_{0}={1}' -f ($key.ToUpperInvariant() -replace '-', '_'), (ConvertTo-SingleLine ([string]$outputs[$key])) }
-$envLines | Set-Content -LiteralPath (Join-Path $reportPath 'outputs.env') -Encoding utf8
-
-switch ($Platform) {
-    'github' {
-        if ($env:GITHUB_OUTPUT) {
-            foreach ($key in $outputs.Keys) { Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value ('{0}={1}' -f $key, (ConvertTo-SingleLine ([string]$outputs[$key]))) }
-        }
-        if ($env:GITHUB_STEP_SUMMARY) {
-            $lines = @(
-                "### Dsc.PipelineRunner: $($result.Status)"
-                ''
-                '| Mode | Engine | Resources | Passed | Failed | Skipped | Module |'
-                '| --- | --- | ---: | ---: | ---: | ---: | --- |'
-                ('| {0} | {1} | {2} | {3} | {4} | {5} | {6} |' -f $mode, $engine, $result.TotalResources, $result.PassCount, $result.FailCount, $result.SkipCount, $result.ModuleVersion)
-            )
-            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $lines
-        }
-    }
-    'azure-devops' {
-        foreach ($key in $outputs.Keys) {
-            $name = ($key -replace '-', '_')
-            Write-Host ('##vso[task.setvariable variable={0};isOutput=true]{1}' -f $name, (ConvertTo-SingleLine ([string]$outputs[$key])))
-        }
-    }
-}
-
-Write-Host ''
-Write-Host ("Dsc.PipelineRunner {0}: {1} resource(s), {2} passed, {3} failed, {4} skipped. Reports: {5}" -f `
-        $result.Status, $result.TotalResources, $result.PassCount, $result.FailCount, $result.SkipCount, $reportPath)
+$resultObject = Publish-StepResult -Result $result
 
 $failed = $result.Status -in 'Failed', 'Aborted'
 $exitCode = 0
