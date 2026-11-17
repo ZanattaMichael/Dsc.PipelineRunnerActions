@@ -24,7 +24,7 @@ function goodRun(change = {}) {
     v: stamp(change.verify || [
       'DSCPR-OUTPUT status=[Completed]', 'DSCPR-OUTPUT total_resources=[3]', 'DSCPR-OUTPUT pass_count=[3]', 'DSCPR-OUTPUT fail_count=[0]',
       'DSCPR-OUTPUT skip_count=[0]', 'DSCPR-OUTPUT module_version=[9.9.9]', 'DSCPR-OUTPUT report_path=[/agent/_work/1/s/dsc-reports]',
-      'DSCPR-CALL {"Mode":"Test","Engine":"DscV2","FailOnError":true,"Connect":"None"}',
+      'DSCPR-CALL {"Mode":"Test","Engine":"DscV2"}',
       'DSCPR-FILE dsc-reports/result.json True', 'DSCPR-FILE dsc-reports/outputs.env True',
     ]),
   };

@@ -192,7 +192,7 @@ function main() {
     for (const line of outcome.step.log.split(/\r?\n/)) console.log(`        | ${line}`);
   }
 
-  console.log(`\n${selected.length - Math.min(failed, selected.length)} of ${selected.length} case(s) passed${failed ? `, ${failed} check(s) failed` : ''}.`);
+  console.log(failed ? `\n${failed} of ${selected.length + 1} check(s) failed (the package, and ${selected.length} case(s)).` : `\nThe package and all ${selected.length} case(s) passed.`);
   if (!process.env.DSCPR_KEEP_WORK) fs.rmSync(root, { recursive: true, force: true });
   process.exit(failed ? 1 : 0);
 }

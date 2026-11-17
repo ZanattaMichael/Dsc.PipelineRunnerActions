@@ -26,9 +26,7 @@
     },
     "call": {
       "Mode": "Test",
-      "Engine": "DscV2",
-      "FailOnError": true,
-      "Connect": "None"
+      "Engine": "DscV2"
     },
     "files": [
       "dsc-reports/result.json",
