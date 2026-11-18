@@ -1,5 +1,5 @@
 {
-  "description": "runner_tags is an array input: it becomes the job's tags, and the job is otherwise the same.",
+  "description": "runner_tags is an array input: it becomes the job's tags, so only a runner with those tags takes the job; the job is otherwise the same.",
   "workspace": {
     "config": "tests/fixtures/config"
   },
@@ -11,8 +11,7 @@
   "inputs": {
     "configuration_path": "config",
     "runner_tags": [
-      "windows",
-      "dsc"
+      "dsc-pipeline-runner-tests"
     ],
     "skip_module_install": "true"
   },

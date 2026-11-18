@@ -184,7 +184,9 @@ async function main() {
     }
 
     console.log('Registering a runner ...');
-    const registration = await api(base, token, 'POST', 'user/runners', { runner_type: 'instance_type', run_untagged: true, description: 'integration tests' });
+    // The runner carries every tag a case asks for, so a tagged job finds it; untagged jobs too.
+    const tags = [...new Set(cases.flatMap(({ definition }) => (definition.inputs && definition.inputs.runner_tags) || []))];
+    const registration = await api(base, token, 'POST', 'user/runners', { runner_type: 'instance_type', run_untagged: true, tag_list: tags, description: 'integration tests' });
     docker('starting the runner', ['run', '-d', '--name', RUNNER, '--network', NETWORK, '-v', '/var/run/docker.sock:/var/run/docker.sock', runnerImage]);
     docker('registering the runner', ['exec', RUNNER, 'gitlab-runner', 'register', '--non-interactive', '--url', `http://${HOSTNAME}`, '--token', registration.token,
       '--executor', 'docker', '--docker-image', 'alpine:3.20', '--docker-network-mode', NETWORK, '--docker-pull-policy', 'if-not-present']);
@@ -218,9 +220,18 @@ async function main() {
       await describePipeline();
       throw new Error('no runner took a job of the pipeline');
     });
+    // A pipeline whose jobs stop changing (a job pending for a runner that never comes) is given
+    // five minutes, not twenty-five.
+    let lastSnapshot = '';
+    let lastChange = Date.now();
     const finished = await waitFor(`pipeline ${pipeline.id} finishing`, async () => {
       const state = await api(base, token, 'GET', `projects/${project.id}/pipelines/${pipeline.id}`);
-      return ['success', 'failed', 'canceled', 'skipped'].includes(state.status) ? state : null;
+      if (['success', 'failed', 'canceled', 'skipped'].includes(state.status)) return state;
+      const list = await api(base, token, 'GET', `projects/${project.id}/pipelines/${pipeline.id}/jobs?per_page=100`);
+      const snapshot = list.map((job) => `${job.name}=${job.status}`).sort().join(' ');
+      if (snapshot !== lastSnapshot) { lastSnapshot = snapshot; lastChange = Date.now(); }
+      else if (Date.now() - lastChange > 5 * 60 * 1000) throw new Error(`pipeline ${pipeline.id} has not moved for five minutes (${list.filter((job) => job.status === 'pending').map((job) => job.name).join(', ') || 'no job'} pending).`);
+      return null;
     }, 25, 15).catch(async (error) => {
       console.log(`FAIL  ${error.message} Where it stands:`);
       await describePipeline();
