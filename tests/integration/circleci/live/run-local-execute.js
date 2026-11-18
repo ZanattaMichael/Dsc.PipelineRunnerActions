@@ -107,8 +107,12 @@ function main() {
         if (failures.length === 0) { console.log(`ok    ${name}  (refused by CircleCI)`); continue; }
       } else {
         // The 0.1.x CLI takes the job name as its argument, not as --job.
-        const args = ['local', 'execute', '--config', configPath, jobName(index)];
+        const args = ['local', 'execute', '--config', configPath];
+        // The job container runs as root and the project is mounted from this user: git in the
+        // checkout step refuses a repository owned by someone else unless it is marked safe.
+        args.push('--env', 'GIT_CONFIG_COUNT=1', '--env', 'GIT_CONFIG_KEY_0=safe.directory', '--env', 'GIT_CONFIG_VALUE_0=*');
         for (const [variable, value] of Object.entries(definition.context || {})) args.push('--env', `${variable}=${value}`);
+        args.push(jobName(index));
         const result = circleci(args, { cwd: project });
         if (/unknown command "local"/.test(result.output)) {
           console.log('FAIL  this CircleCI CLI has no "local execute" (removed in the 1.x line). Install a 0.1.x release, for example VERSION=0.1.31425 with the install script.');
