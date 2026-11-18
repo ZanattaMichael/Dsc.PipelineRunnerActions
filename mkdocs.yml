@@ -1,0 +1,66 @@
+# The documentation site (GitHub Pages). The source folder is assembled from README.md, docs/,
+# assets/ and examples/ by tools/build-site.js; the Pages workflow builds and publishes it, and
+# CI builds it in strict mode so a broken link fails the build.
+site_name: Dsc.PipelineRunner Actions
+site_description: One pipeline step for Dsc.PipelineRunner on GitHub Actions, Azure DevOps, GitLab, CircleCI and Jenkins.
+site_url: https://zanattamichael.github.io/Dsc.PipelineRunnerActions/
+repo_url: https://github.com/ZanattaMichael/Dsc.PipelineRunnerActions
+repo_name: Dsc.PipelineRunnerActions
+edit_uri: ''
+docs_dir: site-src
+site_dir: site
+strict: true
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - search.suggest
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+extra_css:
+  - assets/site.css
+
+markdown_extensions:
+  - tables
+  - toc:
+      permalink: true
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Requirements: requirements.md
+      - Settings: settings.md
+      - Security: security.md
+  - Platforms:
+      - GitHub Actions: github-actions.md
+      - Azure DevOps: azure-devops.md
+      - GitLab CI/CD: gitlab.md
+      - CircleCI: circleci.md
+      - Jenkins: jenkins.md
+      - Other platforms: other-platforms.md
+  - Project:
+      - Publishing: publishing.md
+      - Contributing: contributing.md

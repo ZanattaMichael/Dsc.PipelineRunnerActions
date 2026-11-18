@@ -1,0 +1,61 @@
+# Publishes the documentation site to GitHub Pages: README.md (home), docs/, assets/ and examples/,
+# assembled by tools/build-site.js and built by mkdocs (mkdocs.yml).
+#
+# One-time setup: in the repository's Settings > Pages, set Source to "GitHub Actions"
+# (docs/publishing.md). Until then this workflow's deploy step fails with a message that says so.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - docs/**
+      - assets/**
+      - examples/**
+      - mkdocs.yml
+      - tools/build-site.js
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet mkdocs-material
+      - name: Build
+        run: |
+          node tools/build-site.js
+          mkdocs build --strict
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

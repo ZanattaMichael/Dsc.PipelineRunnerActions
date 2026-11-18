@@ -4,3 +4,6 @@ dsc-reports/
 node_modules/
 # Copied in when the Azure DevOps extension is packaged (tools/Sync-Core.ps1 -AzureDevOps).
 azure-devops/DscPipelineRunnerTask/core/
+# The documentation site, assembled by tools/build-site.js and built by mkdocs.
+site-src/
+site/

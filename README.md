@@ -21,6 +21,8 @@ pass/fail gate.
 Every integration is a thin wrapper around the same script, so they all take the same settings,
 apply the same defaults and behave the same way.
 
+The guides are also published as a site: **https://zanattamichael.github.io/Dsc.PipelineRunnerActions/**.
+
 ## Quick start (GitHub Actions)
 
 ```yaml

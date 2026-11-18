@@ -1,0 +1,27 @@
+/* The documentation site's colours: the blue of the logo tile and its mint check mark. */
+:root {
+  --md-primary-fg-color: #0e66b5;
+  --md-primary-fg-color--light: #249ee2;
+  --md-primary-fg-color--dark: #0a4f8c;
+  --md-accent-fg-color: #1a8ad4;
+  --md-accent-fg-color--transparent: rgba(26, 138, 212, 0.1);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #0e66b5;
+  --md-primary-fg-color--light: #249ee2;
+  --md-primary-fg-color--dark: #0a4f8c;
+  --md-accent-fg-color: #4fb3f0;
+  --md-accent-fg-color--transparent: rgba(79, 179, 240, 0.1);
+}
+
+/* The README header image, kept at a sensible size on the home page. */
+.md-typeset h1 picture img {
+  max-height: 120px;
+  width: auto;
+}
+
+/* Settings and requirements tables are wide: let them use the room. */
+.md-typeset table:not([class]) {
+  font-size: 0.72rem;
+}

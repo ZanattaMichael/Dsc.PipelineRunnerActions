@@ -28,6 +28,7 @@ Repository **variables** and **secrets** (Settings > Secrets and variables > Act
 | GitLab | `GITLAB_PROJECT_URL` | `GITLAB_PUSH_TOKEN` |
 | CircleCI | `CIRCLECI_NAMESPACE` | `CIRCLECI_TOKEN` |
 | Jenkins | none | none |
+| Documentation site (GitHub Pages) | none | none; one setting, below |
 
 ## GitHub Marketplace
 
@@ -117,6 +118,21 @@ their organization's security settings.
 Nothing is published. Jenkins loads the shared library from this repository at the version a
 Jenkinsfile names (`@v1`, `@v1.2.0` or a commit), with Library Path `jenkins/`. The release tag is
 the deployment. See [jenkins.md](jenkins.md).
+
+## Documentation site (GitHub Pages)
+
+The guides are published at https://zanattamichael.github.io/Dsc.PipelineRunnerActions/ by the
+`Pages` workflow (`.github/workflows/pages.yml`), on every push to `main` that touches `README.md`,
+`docs/`, `assets/`, `examples/`, `mkdocs.yml` or the site builder. The site is `README.md` as the
+home page plus `docs/`, assembled by `tools/build-site.js` (which rewrites the links so they work
+on the site, and points links to other files at GitHub) and built by
+[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) from `mkdocs.yml`. CI builds
+the same site in strict mode on every pull request, so a broken link fails the build.
+
+One-time setup: in the repository's **Settings > Pages**, set **Source** to **GitHub Actions**.
+Until that is done the workflow's deploy step fails with a message saying so; nothing else is
+affected. A new page is a new file in `docs/` plus a line in the `nav` of `mkdocs.yml` (a test
+fails when the two disagree).
 
 ## Logos
 
