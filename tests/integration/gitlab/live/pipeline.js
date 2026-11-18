@@ -97,6 +97,9 @@ function cleanTrace(trace) {
   return String(trace || '')
     .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
     .replace(/section_(start|end):\d+:[A-Za-z0-9_]+\r?/g, '')
+    // GitLab 17+ prefixes every trace line with a timestamp, a stream number and O or E, as in
+    // '2026-11-18T02:24:46.049679Z 01O ' (a + after the letter marks a section header).
+    .replace(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z \d{2}[OE][+ ]?/gm, '')
     .replace(/\r/g, '');
 }
 

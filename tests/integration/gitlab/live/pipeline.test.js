@@ -70,8 +70,15 @@ test('secrets are never written into the pipeline file', () => {
   for (const { definition } of cases) for (const value of Object.values(definition.maskedVariables || {})) assert.ok(!yaml.includes(value));
 });
 
-test('traces are cleaned of colour codes and section markers', () => {
+test('traces are cleaned of colour codes, section markers and the per-line timestamp prefix', () => {
   assert.equal(cleanTrace('\x1b[0;32m$ echo hi\x1b[0;m\r\nsection_start:1700000000:step_script\rhi\n'), '$ echo hi\nhi\n');
+  assert.equal(cleanTrace('2026-11-18T02:24:46.049679Z 01O $ echo hi\n2026-11-18T02:24:46.049680Z 01O DSCPR-OUTPUT X=[1]\n2026-11-18T02:24:46.599933Z 00O+Uploading artifacts for successful job\n2026-11-18T02:24:47.514102Z 01E dsc-reports: found 4\n'), '$ echo hi\nDSCPR-OUTPUT X=[1]\nUploading artifacts for successful job\ndsc-reports: found 4\n');
+});
+
+test('a verify job whose trace carries the timestamp prefix is still read', () => {
+  const { jobs, traces } = goodRun();
+  const stamped = (job) => traces(job).split('\n').map((line) => `2026-11-18T02:24:46.049679Z 01O ${line}`).join('\n');
+  assert.deepEqual(evaluateCase(first, 0, jobs, stamped), []);
 });
 
 const verifyLines = [
