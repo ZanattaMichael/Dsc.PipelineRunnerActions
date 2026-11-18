@@ -184,7 +184,17 @@ function main() {
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dscpr-circleci-'));
   console.log(`Step script fetched from GitHub at ${actionsRef}; job shell ${shell || (process.platform === 'win32' ? 'pwsh' : 'bash')}`);
+  const jobShell = shell || (process.platform === 'win32' ? 'pwsh' : 'bash');
+  let notApplicable = 0;
   for (const name of selected) {
+    const definition = JSON.parse(fs.readFileSync(path.join(casesDirectory, name, 'case.json'), 'utf8'));
+    if (definition.hidePowerShell && jobShell === 'pwsh') {
+      // PowerShell puts its own directory on PATH when it starts, so a PowerShell job shell can
+      // never stand for an executor without PowerShell. The bash job shell covers this case.
+      notApplicable += 1;
+      console.log(`n/a   ${name}  (the job shell is PowerShell, so there is no PowerShell to hide)`);
+      continue;
+    }
     let outcome;
     try {
       outcome = runCase(name, orb, root, actionsRef, shell);
@@ -205,7 +215,8 @@ function main() {
     }
   }
   if (!process.env.DSCPR_KEEP_WORK) fs.rmSync(root, { recursive: true, force: true });
-  console.log(failed ? `\n${failed} of ${selected.length + 1} check(s) failed (the orb, and ${selected.length} case(s)).` : `\nThe orb and all ${selected.length} case(s) passed.`);
+  const ran = selected.length - notApplicable;
+  console.log(failed ? `\n${failed} of ${ran + 1} check(s) failed (the orb, and ${ran} case(s)).` : `\nThe orb and all ${ran} case(s) passed${notApplicable ? ` (${notApplicable} not applicable to this job shell)` : ''}.`);
   process.exitCode = failed ? 1 : 0;
 }
 

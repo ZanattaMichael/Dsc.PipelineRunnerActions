@@ -183,6 +183,7 @@ async function main() {
   const shell = argument('shell');
   const template = component.readTemplate(templatePath);
   let failed = 0;
+  let notApplicable = 0;
 
   const specProblems = component.checkSpec(template.inputs);
   if (specProblems.length > 0) {
@@ -201,7 +202,16 @@ async function main() {
   const core = await serveCore();
   console.log(`Step script served from ${core.url}; job shell ${shell || (process.platform === 'win32' ? 'pwsh' : 'bash')}`);
   try {
+    const jobShell = shell || (process.platform === 'win32' ? 'pwsh' : 'bash');
     for (const name of selected) {
+      const definition = JSON.parse(fs.readFileSync(path.join(casesDirectory, name, 'case.json'), 'utf8'));
+      if (definition.hidePowerShell && jobShell === 'pwsh') {
+        // PowerShell puts its own directory on PATH when it starts, so a PowerShell job shell can
+        // never stand for an image without PowerShell. The bash job shell covers this case.
+        notApplicable += 1;
+        console.log(`n/a   ${name}  (the job shell is PowerShell, so there is no PowerShell to hide)`);
+        continue;
+      }
       let outcome;
       try {
         outcome = runCase(name, template, root, core.url, shell);
@@ -225,7 +235,8 @@ async function main() {
     core.server.close();
     if (!process.env.DSCPR_KEEP_WORK) fs.rmSync(root, { recursive: true, force: true });
   }
-  console.log(failed ? `\n${failed} of ${selected.length + 1} check(s) failed (the spec, and ${selected.length} case(s)).` : `\nThe spec and all ${selected.length} case(s) passed.`);
+  const ran = selected.length - notApplicable;
+  console.log(failed ? `\n${failed} of ${ran + 1} check(s) failed (the spec, and ${ran} case(s)).` : `\nThe spec and all ${ran} case(s) passed${notApplicable ? ` (${notApplicable} not applicable to this job shell)` : ''}.`);
   process.exitCode = failed ? 1 : 0;
 }
 
