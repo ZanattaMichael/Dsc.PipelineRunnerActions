@@ -1,7 +1,8 @@
 # <img src="../assets/logo-circleci.svg" alt="" width="48" align="top"> CircleCI
 
-The integration is an orb, `<namespace>/dsc-pipeline-runner`, with a `run` command, a `run` job
-and a `default` executor.
+The integration is an orb, `<namespace>/dsc-pipeline-runner`, with a `run` job (check out and run), an `execute`
+command (run inside your own job) and a `default` executor. The command is not called `run`
+because that is CircleCI's built-in step.
 
 ## Requirements
 
@@ -44,7 +45,7 @@ jobs:
     executor: dsc/default
     steps:
       - checkout
-      - dsc/run:
+      - dsc/execute:
           configuration-path: config
           mode: Set
 ```

@@ -23,7 +23,7 @@ executors:
       - image: << parameters.image >>
 
 commands:
-  run:
+  execute:
     description: >
       Run Dsc.PipelineRunner in the current job. Check out the code first when configuration-path is used.
       Secrets are read from environment variables (set them in a context); the *-variable parameters name them.
@@ -301,7 +301,7 @@ jobs:
     executor: << parameters.executor >>
     steps:
       - checkout
-      - run:
+      - execute:
           configuration-path: << parameters.configuration-path >>
           configuration-repository-url: << parameters.configuration-repository-url >>
           configuration-revision: << parameters.configuration-revision >>

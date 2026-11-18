@@ -41,7 +41,7 @@ function caseJob(definition, actionsRef) {
     // An executor without PowerShell: hide pwsh from every later step.
     steps.push({ run: { name: 'Hide pwsh', command: 'mkdir -p /tmp/no-pwsh && echo "export PATH=/tmp/no-pwsh" >> "$BASH_ENV"' } });
   }
-  steps.push({ [`${ORB}/run`]: parameters });
+  steps.push({ [`${ORB}/execute`]: parameters });
   steps.push({
     run: {
       name: 'verify',

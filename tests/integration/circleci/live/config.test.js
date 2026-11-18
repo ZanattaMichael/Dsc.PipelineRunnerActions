@@ -26,7 +26,7 @@ test('there are cases; the first is the plain successful run; some are refused b
 test('the configuration inlines the orb and has one job per accepted case, all in one workflow', () => {
   const config = YAML.parse(buildConfig(orb, cases, 'abc123'));
   assert.equal(config.version, 2.1);
-  assert.ok(config.orbs[ORB].commands.run, 'the orb is inlined with its run command');
+  assert.ok(config.orbs[ORB].commands.execute, 'the orb is inlined with its execute command');
   assert.ok(!('version' in config.orbs[ORB]) && !('display' in config.orbs[ORB]), 'an inline orb carries no version or display');
   assert.equal(Object.keys(config.jobs).length, accepted.length);
   assert.deepEqual(config.workflows['integration-tests'].jobs, Object.keys(config.jobs));
@@ -34,9 +34,9 @@ test('the configuration inlines the orb and has one job per accepted case, all i
     assert.match(name, /^case-\d\d$/);
     assert.equal(job.executor, `${ORB}/default`);
     assert.equal(job.steps[0], 'checkout');
-    const command = job.steps.find((step) => step && typeof step === 'object' && `${ORB}/run` in step);
+    const command = job.steps.find((step) => step && typeof step === 'object' && `${ORB}/execute` in step);
     assert.ok(command, `${name} does not call the orb command`);
-    assert.equal(command[`${ORB}/run`]['actions-ref'], 'abc123');
+    assert.equal(command[`${ORB}/execute`]['actions-ref'], 'abc123');
     const verify = job.steps[job.steps.length - 1].run;
     assert.equal(verify.name, 'verify');
     assert.equal(verify.when, 'always');
@@ -46,8 +46,8 @@ test('the configuration inlines the orb and has one job per accepted case, all i
 test('every job\'s parameters resolve against the real orb command', () => {
   const config = YAML.parse(buildConfig(orb, cases, 'abc123'));
   for (const [name, job] of Object.entries(config.jobs)) {
-    const given = job.steps.find((step) => step && typeof step === 'object' && `${ORB}/run` in step)[`${ORB}/run`];
-    assert.doesNotThrow(() => orbTools.expandCommand(orb, 'run', given), name);
+    const given = job.steps.find((step) => step && typeof step === 'object' && `${ORB}/execute` in step)[`${ORB}/execute`];
+    assert.doesNotThrow(() => orbTools.expandCommand(orb, 'execute', given), name);
   }
 });
 
@@ -55,8 +55,8 @@ test('a refused case becomes a configuration of its own that the real orb comman
   const index = cases.findIndex(({ definition }) => isRefused(definition));
   const config = YAML.parse(buildRefusedConfig(orb, cases[index].definition, index, 'abc123'));
   assert.deepEqual(Object.keys(config.jobs), [jobName(index)]);
-  const given = config.jobs[jobName(index)].steps.find((step) => step && typeof step === 'object' && `${ORB}/run` in step)[`${ORB}/run`];
-  assert.throws(() => orbTools.expandCommand(orb, 'run', given));
+  const given = config.jobs[jobName(index)].steps.find((step) => step && typeof step === 'object' && `${ORB}/execute` in step)[`${ORB}/execute`];
+  assert.throws(() => orbTools.expandCommand(orb, 'execute', given));
 });
 
 test('secrets are never written into the configuration', () => {

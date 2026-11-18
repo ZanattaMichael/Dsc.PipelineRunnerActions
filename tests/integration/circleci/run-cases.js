@@ -4,7 +4,7 @@
 //
 //   node tests/integration/circleci/run-cases.js [--case <text>] [--shell bash|pwsh] [--actions-ref <ref>]
 //
-// For each case in cases/, the orb's `run` command is expanded with the case's parameters the way
+// For each case in cases/, the orb's `execute` command is expanded with the case's parameters the way
 // CircleCI expands it (orb.js), and its steps are run the way the build agent runs them
 // (agent.js). The command fetches the step script from GitHub at the orb's actions-ref, so what
 // is tested is core/ as it is at --actions-ref: the commit under test in CI, and by default the
@@ -132,7 +132,7 @@ function runCase(name, orb, root, actionsRef, shell) {
   const parameters = { 'actions-ref': actionsRef, ...substituteDeep(definition.parameters || {}, workdir) };
   let expanded;
   try {
-    expanded = orbTools.expandCommand(orb, 'run', parameters);
+    expanded = orbTools.expandCommand(orb, 'execute', parameters);
   } catch (error) {
     return { definition, outcome: { stage: 'processing', error: error.message }, workdir };
   }
@@ -163,7 +163,7 @@ function main() {
   if (!actionsRef) {
     const head = spawnSync('git', ['-C', repository, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
     actionsRef = (head.stdout || '').trim();
-    if (!actionsRef) { console.error('Could not find the current commit; pass --actions-ref.'); process.exit(2); }
+    if (!actionsRef) { console.error('Could not find the current commit; pass --actions-ref.'); process.exitCode = 2; return; }
     console.log(`--actions-ref not given: using HEAD ${actionsRef}, which must have been pushed to GitHub.`);
   }
   const orb = orbTools.readOrb(orbPath);
@@ -175,12 +175,12 @@ function main() {
     console.log('FAIL  the orb');
     for (const problem of orbProblems) console.log(`        ${problem}`);
   } else {
-    console.log(`ok    the orb declares ${Object.keys(orb.commands.run.parameters).length} parameters that CircleCI accepts`);
+    console.log(`ok    the orb declares ${Object.keys(orb.commands.execute.parameters).length} parameters that CircleCI accepts`);
   }
 
   const names = fs.readdirSync(casesDirectory).filter((name) => fs.existsSync(path.join(casesDirectory, name, 'case.json'))).sort();
   const selected = names.filter((name) => !only || name.includes(only));
-  if (selected.length === 0) { console.error('No case matches.'); process.exit(2); }
+  if (selected.length === 0) { console.error('No case matches.'); process.exitCode = 2; return; }
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dscpr-circleci-'));
   console.log(`Step script fetched from GitHub at ${actionsRef}; job shell ${shell || (process.platform === 'win32' ? 'pwsh' : 'bash')}`);
@@ -206,7 +206,7 @@ function main() {
   }
   if (!process.env.DSCPR_KEEP_WORK) fs.rmSync(root, { recursive: true, force: true });
   console.log(failed ? `\n${failed} of ${selected.length + 1} check(s) failed (the orb, and ${selected.length} case(s)).` : `\nThe orb and all ${selected.length} case(s) passed.`);
-  process.exit(failed ? 1 : 0);
+  process.exitCode = failed ? 1 : 0;
 }
 
 main();

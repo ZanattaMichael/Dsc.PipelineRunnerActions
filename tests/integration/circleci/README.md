@@ -12,7 +12,7 @@ it, and no DSC resources are needed.
 
 ## Where the step script comes from
 
-The orb's `run` command fetches the step script from
+The orb's `execute` command fetches the step script from
 `https://raw.githubusercontent.com/ZanattaMichael/Dsc.PipelineRunnerActions/<actions-ref>/core/`.
 Both tiers pass `actions-ref` as the commit under test, so what they test is `core/` as it is at
 that commit on GitHub: in CI the pushed commit, and by hand whatever `--actions-ref` names (by

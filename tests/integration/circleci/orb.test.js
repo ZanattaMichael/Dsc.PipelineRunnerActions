@@ -11,9 +11,9 @@ const agent = require('./agent.js');
 
 const orb = orbTools.readOrb(path.join(__dirname, '..', '..', '..', 'circleci', 'orb.yml'));
 
-test('the orb passes the checks, and the run command has a default for every parameter', () => {
+test('the orb passes the checks, and the execute command has a default for every parameter', () => {
   assert.deepEqual(orbTools.checkOrb(orb), []);
-  for (const [name, parameter] of Object.entries(orb.commands.run.parameters)) assert.ok('default' in parameter, `parameter '${name}' has no default`);
+  for (const [name, parameter] of Object.entries(orb.commands.execute.parameters)) assert.ok('default' in parameter, `parameter '${name}' has no default`);
 });
 
 test('the parameter checks catch what the orb validator refuses', () => {
@@ -73,8 +73,8 @@ test('when and unless steps are taken or dropped, and unknown step types are ref
   assert.throws(() => orbTools.expandSteps([{ run: 'a', checkout: {} }], {}), /exactly one key/);
 });
 
-test('the run command expands to one run step and one store_artifacts step that always runs', () => {
-  const { steps, parameters } = orbTools.expandCommand(orb, 'run', { 'configuration-path': 'config', 'skip-module-install': true, 'source-token-variable': 'MY_TOKEN', 'actions-ref': 'abc' });
+test('the execute command expands to one run step and one store_artifacts step that always runs', () => {
+  const { steps, parameters } = orbTools.expandCommand(orb, 'execute', { 'configuration-path': 'config', 'skip-module-install': true, 'source-token-variable': 'MY_TOKEN', 'actions-ref': 'abc' });
   assert.deepEqual(steps.map((step) => step.type), ['run', 'store_artifacts']);
   assert.equal(String(steps[0].environment.DSCPR_SKIP_MODULE_INSTALL), 'true');
   assert.equal(steps[0].environment.DSCPR_SOURCE_TOKEN_VARIABLE, 'MY_TOKEN');
@@ -86,11 +86,11 @@ test('the run command expands to one run step and one store_artifacts step that 
   assert.doesNotMatch(steps[0].command, /<</, 'no parameter reference is left in the command');
 });
 
-test('the run job passes every parameter of the run command through', () => {
-  const commandParameters = Object.keys(orb.commands.run.parameters);
-  const given = orb.jobs.run.steps.find((step) => step && typeof step === 'object' && 'run' in step).run;
-  for (const name of commandParameters) assert.equal(given[name], `<< parameters.${name} >>`, `the run job does not pass '${name}' to the run command`);
-  for (const name of Object.keys(given)) assert.ok(commandParameters.includes(name), `the run job passes '${name}', which the run command does not declare`);
+test('the run job passes every parameter of the execute command through', () => {
+  const commandParameters = Object.keys(orb.commands.execute.parameters);
+  const given = orb.jobs.run.steps.find((step) => step && typeof step === 'object' && 'execute' in step).execute;
+  for (const name of commandParameters) assert.equal(given[name], `<< parameters.${name} >>`, `the run job does not pass '${name}' to the execute command`);
+  for (const name of Object.keys(given)) assert.ok(commandParameters.includes(name), `the run job passes '${name}', which the execute command does not declare`);
 });
 
 test('the agent runs steps in order, stops at a failure except for always steps, and masks context secrets', () => {

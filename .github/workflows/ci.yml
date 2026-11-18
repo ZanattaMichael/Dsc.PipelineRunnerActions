@@ -310,7 +310,7 @@ jobs:
         run: node tests/integration/gitlab/live/run-live.js
 
   circleci-orb:
-    # The orb's run command is expanded and its steps run the way CircleCI and its build agent do
+    # The orb's execute command is expanded and its steps run the way CircleCI and its build agent do
     # it, once per case. The step script is fetched from GitHub at the commit under test, so this
     # needs that commit to be in this repository (not a fork). See tests/integration/circleci/README.md.
     name: CircleCI orb (${{ matrix.os }})

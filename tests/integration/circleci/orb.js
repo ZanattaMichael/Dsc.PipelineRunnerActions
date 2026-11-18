@@ -2,7 +2,7 @@
 // A stand-in for what CircleCI does with an orb command before the build agent runs its steps.
 //
 // CircleCI processes a configuration on its servers, so this file does what that processing does
-// for one use of the orb's `run` command:
+// for one use of the orb's `execute` command:
 //
 //   * reads the orb and finds the command
 //   * resolves the parameters the step gives against the command's declaration: defaults,

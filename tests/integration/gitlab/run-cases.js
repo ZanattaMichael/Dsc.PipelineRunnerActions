@@ -195,7 +195,7 @@ async function main() {
 
   const names = fs.readdirSync(casesDirectory).filter((name) => fs.existsSync(path.join(casesDirectory, name, 'case.json'))).sort();
   const selected = names.filter((name) => !only || name.includes(only));
-  if (selected.length === 0) { console.error('No case matches.'); process.exit(2); }
+  if (selected.length === 0) { console.error('No case matches.'); process.exitCode = 2; return; }
 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dscpr-gitlab-'));
   const core = await serveCore();
@@ -226,7 +226,7 @@ async function main() {
     if (!process.env.DSCPR_KEEP_WORK) fs.rmSync(root, { recursive: true, force: true });
   }
   console.log(failed ? `\n${failed} of ${selected.length + 1} check(s) failed (the spec, and ${selected.length} case(s)).` : `\nThe spec and all ${selected.length} case(s) passed.`);
-  process.exit(failed ? 1 : 0);
+  process.exitCode = failed ? 1 : 0;
 }
 
-main().catch((error) => { console.error(error.stack); process.exit(1); });
+main().catch((error) => { console.error(error.stack); process.exitCode = 1; });

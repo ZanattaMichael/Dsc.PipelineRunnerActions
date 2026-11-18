@@ -62,11 +62,11 @@ function stageProject(work, config) {
 
 function main() {
   const cases = loadCases(argument('case'));
-  if (cases.length === 0) { console.error('No case matches.'); process.exit(2); }
+  if (cases.length === 0) { console.error('No case matches.'); return 2; }
   let actionsRef = argument('actions-ref');
   if (!actionsRef) {
     actionsRef = (spawnSync('git', ['-C', repository, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout || '').trim();
-    if (!actionsRef) { console.error('Could not find the current commit; pass --actions-ref.'); process.exit(2); }
+    if (!actionsRef) { console.error('Could not find the current commit; pass --actions-ref.'); return 2; }
     console.log(`--actions-ref not given: using HEAD ${actionsRef}, which must have been pushed to GitHub.`);
   }
   const orb = orbTools.readOrb(path.join(repository, 'circleci', 'orb.yml'));
@@ -82,7 +82,8 @@ function main() {
     console.log('Validating the configuration with CircleCI ...');
     const validation = circleci(['config', 'validate', configPath], { cwd: project });
     if (validation.exitCode !== 0) {
-      if (!process.env.CIRCLE_TOKEN && /token|unauthori[sz]ed|401|not logged in|please (log in|set)/i.test(validation.output)) {
+      // The CLI's own message when it wants a token, not the word in a configuration it echoes back.
+      if (!process.env.CIRCLE_TOKEN && /circleci setup|set a token|token is (required|missing|invalid)|requires a token|unauthori[sz]ed|HTTP 401/i.test(validation.output.replace(/^\s*•\s*\|.*$/gm, ''))) {
         console.log(`The CircleCI CLI needs a token to process the configuration and CIRCLE_TOKEN is not set:\n${validation.output}`);
         return 3;
       }
@@ -123,4 +124,4 @@ function main() {
   return failed ? 1 : 0;
 }
 
-process.exit(main());
+process.exitCode = main();

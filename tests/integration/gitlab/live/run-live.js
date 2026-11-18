@@ -59,6 +59,7 @@ const docker = (what, args, options) => run(what, 'docker', args, options);
 async function api(base, token, method, route, body, accept = 'application/json') {
   const response = await fetch(`${base}/${API}/${route}`, {
     method,
+    signal: AbortSignal.timeout(120000),
     headers: { 'PRIVATE-TOKEN': token, Accept: accept, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -97,7 +98,7 @@ function stageRepository(work, yaml) {
 
 async function main() {
   const cases = loadCases(argument('case'));
-  if (cases.length === 0) { console.error('No case matches.'); process.exit(2); }
+  if (cases.length === 0) { console.error('No case matches.'); return 2; }
   const componentReference = `$CI_SERVER_FQDN/root/${PROJECT}/dsc-pipeline-runner`;
   const yaml = buildPipeline(cases, componentReference);
   if (flag('print-yaml')) { process.stdout.write(yaml); return 0; }
@@ -143,7 +144,7 @@ async function main() {
       '--shm-size', '256m', '-e', `GITLAB_OMNIBUS_CONFIG=${omnibus}`, image]);
     await waitFor('GitLab becoming ready', async () => {
       try {
-        const response = await fetch(`${base}/users/sign_in`, { redirect: 'manual' });
+        const response = await fetch(`${base}/users/sign_in`, { redirect: 'manual', signal: AbortSignal.timeout(10000) });
         return response.status === 200;
       } catch { return false; }
     }, 12, 15);
@@ -237,4 +238,11 @@ async function main() {
   return failed ? 1 : 0;
 }
 
-main().then((code) => process.exit(code), (error) => { console.error(error.stack); process.exit(1); });
+// A promise that never settles would end the process quietly with code 0; that is a failure.
+let finished = false;
+process.on('exit', (code) => {
+  if (!finished) { console.error('FAIL  the script ended before it finished (an operation never completed).'); process.exitCode = 1; }
+  else if (code === 0 && process.exitCode === undefined) process.exitCode = 0;
+});
+const keepAlive = setInterval(() => {}, 60 * 1000);
+main().then((code) => { finished = true; process.exitCode = code; }, (error) => { finished = true; console.error(error.stack); process.exitCode = 1; }).finally(() => clearInterval(keepAlive));
