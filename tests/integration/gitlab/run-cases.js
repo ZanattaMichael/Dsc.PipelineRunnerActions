@@ -117,7 +117,7 @@ function checkOutcome(definition, outcome, project) {
   for (const pattern of expect.contains || []) if (!new RegExp(pattern).test(result.raw)) failures.push(`the log does not match /${pattern}/`);
   for (const pattern of expect.notContains || []) if (new RegExp(pattern).test(result.raw)) failures.push(`the log matches /${pattern}/, which it must not`);
 
-  const callFile = path.join(project, 'dsc-reports', 'call.json');
+  const callFile = path.join(project, (definition.inputs && definition.inputs.report_path) || 'dsc-reports', 'call.json');
   const called = fs.existsSync(callFile);
   if (expect.notCalled && called) failures.push('Dsc.PipelineRunner was called, and must not have been');
   if (expect.call) {
@@ -144,7 +144,8 @@ async function runCase(name, template, root, coreUrl, shell) {
   // comes from and where the stand-in module records its call (inside the report directory, so it
   // is an artifact).
   const local = substituteDeep(definition.job || {}, project);
-  local.variables = { DSCPR_CORE_URL: coreUrl, DSCPR_TEST_CALL_FILE: '$CI_PROJECT_DIR/dsc-reports/call.json', ...(local.variables || {}) };
+  const report = inputs.report_path || 'dsc-reports';
+  local.variables = { DSCPR_CORE_URL: coreUrl, DSCPR_TEST_CALL_FILE: `$CI_PROJECT_DIR/${report}/call.json`, ...(local.variables || {}) };
 
   let built;
   try {
