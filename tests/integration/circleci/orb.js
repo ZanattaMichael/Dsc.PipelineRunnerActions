@@ -82,16 +82,33 @@ function resolveParameters(declared, given) {
   return resolved;
 }
 
+// A value inside a string: CircleCI renders a boolean as 1 or 0 there.
 function render(value) {
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'boolean') return value ? '1' : '0';
   return String(value);
 }
 
+function truthy(value) {
+  return value !== false && value !== '' && value !== 0 && value !== null && value !== undefined;
+}
+
+// Sections first (<<# parameters.x >>kept when true<</ parameters.x >> and the inverted
+// <<^ parameters.x >>kept when false<</ parameters.x >>), then plain references.
 function substituteString(text, resolved) {
-  return text.replace(/<<\s*parameters\.([a-z][a-z0-9_-]*)\s*>>/g, (match, name) => {
+  const lookup = (name, match) => {
     if (!(name in resolved)) throw new Error(`'${match}' refers to a parameter the command does not declare.`);
-    return render(resolved[name]);
-  });
+    return resolved[name];
+  };
+  let result = text;
+  for (let pass = 0; pass < 10; pass += 1) {
+    const next = result.replace(/<<([#^])\s*parameters\.([a-z][a-z0-9_-]*)\s*>>([\s\S]*?)<<\/\s*parameters\.\2\s*>>/g, (match, kind, name, body) => {
+      const keep = kind === '#' ? truthy(lookup(name, match)) : !truthy(lookup(name, match));
+      return keep ? body : '';
+    });
+    if (next === result) break;
+    result = next;
+  }
+  return result.replace(/<<\s*parameters\.([a-z][a-z0-9_-]*)\s*>>/g, (match, name) => render(lookup(name, match)));
 }
 
 // A value that is exactly one parameter reference keeps the parameter's type (so a boolean

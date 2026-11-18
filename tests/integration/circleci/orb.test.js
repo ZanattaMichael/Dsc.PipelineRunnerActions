@@ -47,8 +47,28 @@ test('parameters are defaulted and typed; every problem is reported at once', ()
 
 test('<< parameters.x >> is replaced in text, and a lone reference keeps its type', () => {
   const resolved = { name: 'n', flag: true, count: 2 };
-  assert.deepEqual(orbTools.substitute({ a: 'name=<< parameters.name >> flag=<<parameters.flag>>', b: '<< parameters.flag >>', c: ['<< parameters.count >>'] }, resolved), { a: 'name=n flag=true', b: true, c: [2] });
+  assert.deepEqual(orbTools.substitute({ a: 'name=<< parameters.name >> flag=<<parameters.flag>>', b: '<< parameters.flag >>', c: ['<< parameters.count >>'] }, resolved), { a: 'name=n flag=1', b: true, c: [2] });
   assert.throws(() => orbTools.substitute('<< parameters.nope >>', resolved), /does not declare/);
+});
+
+test('a boolean inside a string renders as 1 or 0, and sections render what the orb writes for each case', () => {
+  const resolved = { flag: true, off: false, name: 'n' };
+  assert.equal(orbTools.substitute('v=<< parameters.flag >> w=<< parameters.off >>', resolved), 'v=1 w=0');
+  const sections = '<<# parameters.flag >>true<</ parameters.flag >><<^ parameters.flag >>false<</ parameters.flag >>';
+  assert.equal(orbTools.substitute(sections, resolved), 'true');
+  assert.equal(orbTools.substitute(sections.replaceAll('flag', 'off'), resolved), 'false');
+  assert.equal(orbTools.substitute('<<# parameters.name >>has name<</ parameters.name >>', resolved), 'has name');
+  assert.throws(() => orbTools.substitute('<<# parameters.nope >>x<</ parameters.nope >>', resolved), /does not declare/);
+});
+
+test('every boolean parameter of the execute command reaches the step as the word true or false', () => {
+  for (const flag of [true, false]) {
+    const given = Object.fromEntries(Object.entries(orb.commands.execute.parameters).filter(([, parameter]) => parameter.type === 'boolean').map(([name]) => [name, flag]));
+    const { steps } = orbTools.expandCommand(orb, 'execute', given);
+    for (const [variable, value] of Object.entries(steps[0].environment)) {
+      if (/^DSCPR_(FAIL_ON_ERROR|REQUIRE_POLICY|ALLOW_PRERELEASE|SKIP_MODULE_INSTALL|KEEP_TEMPORARY_DIRECTORY|VERBOSE)$/.test(variable)) assert.equal(value, flag ? 'true' : 'false', variable);
+    }
+  }
 });
 
 test('logic statements are evaluated as CircleCI evaluates them', () => {
