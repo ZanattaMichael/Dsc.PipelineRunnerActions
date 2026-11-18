@@ -104,7 +104,8 @@ function main() {
         output = result.output;
         if (failures.length === 0) { console.log(`ok    ${name}  (refused by CircleCI)`); continue; }
       } else {
-        const args = ['local', 'execute', '--config', configPath, '--job', jobName(index)];
+        // The 0.1.x CLI takes the job name as its argument, not as --job.
+        const args = ['local', 'execute', '--config', configPath, jobName(index)];
         for (const [variable, value] of Object.entries(definition.context || {})) args.push('--env', `${variable}=${value}`);
         const result = circleci(args, { cwd: project });
         if (/unknown command "local"/.test(result.output)) {
