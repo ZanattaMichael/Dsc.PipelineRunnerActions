@@ -345,7 +345,8 @@ jobs:
       - name: Install the CircleCI CLI
         run: |
           set -euo pipefail
-          curl -fsSL https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/main/install.sh | DESTDIR="$HOME/bin" bash
+          # The 1.x CLI has no 'local execute'; the 0.1.x line is the last that runs a job locally.
+          curl -fsSL https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/main/install.sh | VERSION=0.1.31425 DESTDIR="$HOME/bin" bash
           echo "$HOME/bin" >> "$GITHUB_PATH"
           "$HOME/bin/circleci" version
       - name: Run the cases with local execute

@@ -12,7 +12,7 @@
 // What is a stand-in: Dsc.PipelineRunner (tests/fixtures/modules). What local execute cannot
 // show: store_artifacts (it skips uploads) and contexts (secrets are passed with --env).
 //
-// Needs Docker, the circleci CLI on PATH, and a commit of this repository on GitHub to fetch
+// Needs Docker, a 0.1.x circleci CLI on PATH (the 1.x line has no local execute), and a commit of this repository on GitHub to fetch
 // core/ from (--actions-ref; by default HEAD, which must have been pushed). If the CLI needs a
 // token to process the configuration, set CIRCLE_TOKEN; without one, this exits 3 and says so.
 
@@ -107,6 +107,11 @@ function main() {
         const args = ['local', 'execute', '--config', configPath, '--job', jobName(index)];
         for (const [variable, value] of Object.entries(definition.context || {})) args.push('--env', `${variable}=${value}`);
         const result = circleci(args, { cwd: project });
+        if (/unknown command "local"/.test(result.output)) {
+          console.log('FAIL  this CircleCI CLI has no "local execute" (removed in the 1.x line). Install a 0.1.x release, for example VERSION=0.1.31425 with the install script.');
+          failed += 1;
+          break;
+        }
         failures = evaluateCase(definition, result.output, result.exitCode);
         output = result.output;
         if (failures.length === 0) { console.log(`ok    ${name}  (${result.exitCode === 0 ? 'success' : 'failed'})`); continue; }

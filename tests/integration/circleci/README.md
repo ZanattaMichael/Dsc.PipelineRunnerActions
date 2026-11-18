@@ -43,7 +43,9 @@ prints the job log. `orb.test.js` tests the stand-ins themselves.
 
 ## Live tier
 
-`live/run-local-execute.js` needs Docker and the [CircleCI CLI](https://circleci.com/docs/local-cli/).
+`live/run-local-execute.js` needs Docker and a **0.1.x** release of the
+[CircleCI CLI](https://circleci.com/docs/local-cli/): the 1.x line has no `local execute`. The
+install script takes `VERSION=0.1.31425`, which is what CI uses.
 It writes one configuration with the orb inlined and one job per accepted case, has CircleCI
 validate it, then runs each job with `circleci local execute`: the real agent, in the orb's
 default executor image, with the case's secrets passed as `--env`. A verify step with
