@@ -121,7 +121,7 @@ test('a dotenv report is read with the rules the server applies', () => {
   assert.match(many.problems.join('\n'), /the limit is 20/);
 });
 
-test('the runner echoes each script line, stops at the first failure and keeps always-artifacts', () => {
+test('the runner echoes each script line, stops at the first failure and keeps always-artifacts', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dscpr-gitlab-test-'));
   const project = path.join(root, 'project');
   fs.mkdirSync(project);
@@ -130,7 +130,7 @@ test('the runner echoes each script line, stops at the first failure and keeps a
     ? ['New-Item -ItemType Directory out | Out-Null', 'Set-Content out/outputs.env "DSCPR_STATUS=Failed"', 'Write-Host "value is $SECRET_ONE and $CI_JOB_NAME"', 'exit 3', 'Write-Host NOT-REACHED']
     : ['mkdir out', 'echo DSCPR_STATUS=Failed > out/outputs.env', 'echo "value is $SECRET_ONE and $CI_JOB_NAME"', 'exit 3', 'echo NOT-REACHED'];
   const job = { stage: 'test', script: lines, variables: { OUT: '$CI_PROJECT_DIR/out' }, artifacts: { when: 'always', paths: ['out'], reports: { dotenv: 'out/outputs.env' } } };
-  const result = runner.runJob({ name: 'j', job, projectDirectory: project, variables: { SECRET_ONE: 'hush-hush' }, masked: ['SECRET_ONE'], shell });
+  const result = await runner.runJob({ name: 'j', job, projectDirectory: project, variables: { SECRET_ONE: 'hush-hush' }, masked: ['SECRET_ONE'], shell });
   assert.equal(result.status, 'failed');
   assert.equal(result.exitCode, 3);
   assert.match(result.raw, /value is hush-hush and j/);
@@ -144,14 +144,14 @@ test('the runner echoes each script line, stops at the first failure and keeps a
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('an invalid dotenv report fails the job even when the script succeeded', () => {
+test('an invalid dotenv report fails the job even when the script succeeded', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dscpr-gitlab-test-'));
   const project = path.join(root, 'project');
   fs.mkdirSync(project);
   fs.writeFileSync(path.join(project, 'bad.env'), 'this is not dotenv\n');
   const shell = process.platform === 'win32' ? 'pwsh' : 'bash';
   const job = { script: [shell === 'pwsh' ? 'Write-Host ok' : 'echo ok'], artifacts: { reports: { dotenv: 'bad.env' } } };
-  const result = runner.runJob({ name: 'j', job, projectDirectory: project, shell });
+  const result = await runner.runJob({ name: 'j', job, projectDirectory: project, shell });
   assert.equal(result.exitCode, 0);
   assert.equal(result.status, 'failed');
   assert.match(result.raw, /Uploading artifacts as "dotenv".*failed/);

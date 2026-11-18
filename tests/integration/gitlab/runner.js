@@ -12,7 +12,7 @@
 //
 // The job runs in a directory that stands for the project checkout (CI_PROJECT_DIR).
 
-const { spawnSync } = require('node:child_process');
+const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { expandVariables, parseDotenv } = require('./component.js');
@@ -109,7 +109,27 @@ function collectArtifactPaths(projectDirectory, patterns) {
  *   environment        the runner machine's own environment (PATH and so on)
  *   shell              'bash' or 'pwsh'; default by platform
  */
-function runJob({ name, job, projectDirectory, variables = {}, masked = [], environment = process.env, shell }) {
+// Runs a command without blocking the event loop: the job fetches the step script from a web
+// server that lives in this very process, so a synchronous spawn would wait for ever.
+function run(command, args, options) {
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    let child;
+    try {
+      child = spawn(command, args, options);
+    } catch (error) {
+      resolve({ status: null, stdout, stderr, error });
+      return;
+    }
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('error', (error) => resolve({ status: null, stdout, stderr, error }));
+    child.on('close', (status) => resolve({ status, stdout, stderr }));
+  });
+}
+
+async function runJob({ name, job, projectDirectory, variables = {}, masked = [], environment = process.env, shell }) {
   const chosenShell = shell || (process.platform === 'win32' ? 'pwsh' : 'bash');
   const jobVariables = {};
   for (const [variable, value] of Object.entries(job.variables || {})) jobVariables[variable] = value && typeof value === 'object' ? String(value.value) : String(value);
@@ -125,10 +145,10 @@ function runJob({ name, job, projectDirectory, variables = {}, masked = [], envi
   // its PATH without losing the shell that runs it.
   const executable = findOnPath(chosenShell === 'pwsh' ? 'pwsh' : 'bash', process.env.PATH || '');
   const command = chosenShell === 'pwsh' ? [executable, ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', scriptPath]] : [executable, [scriptPath]];
-  const run = spawnSync(command[0], command[1], { env, cwd: projectDirectory, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  let raw = `${run.stdout || ''}${run.stderr || ''}`;
-  let exitCode = run.status === null ? 1 : run.status;
-  if (run.error) { raw += `\nERROR: Could not start the job shell ${command[0]}: ${run.error.message}\n`; exitCode = 1; }
+  const result = await run(command[0], command[1], { env, cwd: projectDirectory, stdio: ['ignore', 'pipe', 'pipe'] });
+  let raw = `${result.stdout || ''}${result.stderr || ''}`;
+  let exitCode = result.status === null ? 1 : result.status;
+  if (result.error) { raw += `\nERROR: Could not start the job shell ${command[0]}: ${result.error.message}\n`; exitCode = 1; }
 
   // Artifacts, as the runner collects them after the script.
   const artifacts = job.artifacts || {};

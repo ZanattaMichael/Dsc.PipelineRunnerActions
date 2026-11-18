@@ -132,7 +132,7 @@ function checkOutcome(definition, outcome, project) {
   return failures;
 }
 
-function runCase(name, template, root, coreUrl, shell) {
+async function runCase(name, template, root, coreUrl, shell) {
   const definition = JSON.parse(fs.readFileSync(path.join(casesDirectory, name, 'case.json'), 'utf8'));
   const project = path.join(root, name, 'project');
   fs.mkdirSync(project, { recursive: true });
@@ -168,7 +168,7 @@ function runCase(name, template, root, coreUrl, shell) {
     delete environment.Path;
   }
 
-  const result = runner.runJob({
+  const result = await runner.runJob({
     name: built.name, job: built.job, projectDirectory: project,
     variables: substituteDeep(definition.variables || {}, project),
     masked: Object.keys(definition.maskedVariables || {}),
@@ -214,7 +214,7 @@ async function main() {
       }
       let outcome;
       try {
-        outcome = runCase(name, template, root, core.url, shell);
+        outcome = await runCase(name, template, root, core.url, shell);
       } catch (error) {
         failed += 1;
         console.log(`FAIL  ${name}\n        ${error.stack}`);
