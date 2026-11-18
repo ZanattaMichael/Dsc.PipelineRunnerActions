@@ -148,7 +148,23 @@ async function main() {
         return response.status === 200;
       } catch { return false; }
     }, 12, 15);
-    console.log(`GitLab is answering after ${elapsed()}. Creating an access token ...`);
+    console.log(`GitLab is answering after ${elapsed()}. Waiting for its first configuration to finish ...`);
+    // The web front answers before the first-boot configuration is over; services (Sidekiq among
+    // them, which moves pipelines along) are still being restarted until the container says so.
+    await waitFor('the first configuration finishing', async () => {
+      const logs = docker('GitLab logs', ['logs', GITLAB], { allowFailure: true });
+      return /gitlab Reconfigured!/.test(`${logs.stdout}${logs.stderr}`);
+    }, 10, 10);
+    await waitFor('every GitLab service running', async () => {
+      const status = docker('gitlab-ctl status', ['exec', GITLAB, 'gitlab-ctl', 'status'], { allowFailure: true });
+      const lines = status.stdout.split('\n').filter((line) => line.trim() !== '');
+      return lines.length > 0 && lines.every((line) => line.startsWith('run:')) && lines.some((line) => line.startsWith('run: sidekiq'));
+    }, 5, 10);
+    await waitFor('GitLab reporting itself ready', async () => {
+      const readiness = docker('readiness', ['exec', GITLAB, 'curl', '-sf', 'http://localhost/-/readiness?all=1'], { allowFailure: true });
+      return readiness.status === 0 && /"status":"ok"/.test(readiness.stdout);
+    }, 5, 10);
+    console.log(`GitLab is ready after ${elapsed()}. Creating an access token ...`);
     // A personal access token for root, with a value this process chose.
     const ruby = `u = User.find_by_username('root'); t = u.personal_access_tokens.create!(scopes: [:api], name: 'integration tests', expires_at: 1.day.from_now); t.set_token('${token}'); t.save!; puts 'token-ok'`;
     const rails = docker('creating the access token', ['exec', GITLAB, 'gitlab-rails', 'runner', ruby]);
@@ -180,10 +196,36 @@ async function main() {
       return list[0];
     }, 3, 5);
     console.log(`Pipeline ${pipeline.id} created (${elapsed()}): ${base}/root/${PROJECT}/-/pipelines/${pipeline.id}`);
+    const describePipeline = async () => {
+      const state = await api(base, token, 'GET', `projects/${project.id}/pipelines/${pipeline.id}`);
+      const list = await api(base, token, 'GET', `projects/${project.id}/pipelines/${pipeline.id}/jobs?per_page=100`);
+      const runners = await api(base, token, 'GET', 'runners/all');
+      console.log(`        pipeline ${pipeline.id}: ${state.status}${state.yaml_errors ? ` (yaml errors: ${state.yaml_errors})` : ''}`);
+      for (const job of list) console.log(`        job ${job.name}: ${job.status}${job.failure_reason ? ` (${job.failure_reason})` : ''}`);
+      for (const runner of runners) console.log(`        runner ${runner.id} (${runner.runner_type}): online ${runner.online}, status ${runner.status}, paused ${runner.paused}`);
+      const runnerLogs = docker('runner logs', ['logs', '--tail', '30', RUNNER], { allowFailure: true });
+      console.log(`        ---- last lines of the runner container ----\n${runnerLogs.stdout}${runnerLogs.stderr}`);
+      return { state, jobs: list };
+    };
+    // A runner must take the first job within a few minutes; otherwise say why, instead of waiting.
+    await waitFor('a runner taking a job', async () => {
+      const list = await api(base, token, 'GET', `projects/${project.id}/pipelines/${pipeline.id}/jobs?per_page=100`);
+      const state = await api(base, token, 'GET', `projects/${project.id}/pipelines/${pipeline.id}`);
+      if (['success', 'failed', 'canceled', 'skipped'].includes(state.status)) return true;
+      return list.some((job) => !['created', 'pending', 'waiting_for_resource', 'preparing'].includes(job.status));
+    }, 5, 10).catch(async (error) => {
+      console.log(`FAIL  ${error.message} Nothing ran:`);
+      await describePipeline();
+      throw new Error('no runner took a job of the pipeline');
+    });
     const finished = await waitFor(`pipeline ${pipeline.id} finishing`, async () => {
       const state = await api(base, token, 'GET', `projects/${project.id}/pipelines/${pipeline.id}`);
       return ['success', 'failed', 'canceled', 'skipped'].includes(state.status) ? state : null;
-    }, 25, 15);
+    }, 25, 15).catch(async (error) => {
+      console.log(`FAIL  ${error.message} Where it stands:`);
+      await describePipeline();
+      throw error;
+    });
     console.log(`Pipeline ${pipeline.id} finished: ${finished.status} (${elapsed()})`);
     if (finished.yaml_errors) {
       failed += 1;
