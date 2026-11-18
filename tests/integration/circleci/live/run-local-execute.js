@@ -38,7 +38,9 @@ function loadCases(only) {
 }
 
 function circleci(args, options = {}) {
-  const result = spawnSync('circleci', ['--skip-update-check', ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...options });
+  // The update check is turned off through the environment: 'local execute' hands its flags on to
+  // the build agent, which does not know --skip-update-check.
+  const result = spawnSync('circleci', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...options, env: { ...process.env, CIRCLECI_CLI_SKIP_UPDATE_CHECK: 'true', ...(options.env || {}) } });
   if (result.error) throw new Error(`Could not run the circleci CLI: ${result.error.message}. Install it from https://circleci.com/docs/local-cli/.`);
   return { output: `${result.stdout || ''}${result.stderr || ''}`, exitCode: result.status === null ? 1 : result.status };
 }
