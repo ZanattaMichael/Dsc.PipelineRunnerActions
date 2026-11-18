@@ -59,8 +59,18 @@ function stageProject(work, config) {
   git('init', '-q');
   git('add', '-A');
   git('commit', '-q', '-m', 'The orb under test');
+  // The build agent reads the project with git as root, and git refuses a repository owned by
+  // another user. Where this user can, the staged copy is handed to root for the duration.
+  if (process.platform !== 'win32' && process.getuid && process.getuid() !== 0) {
+    const sudo = spawnSync('sudo', ['-n', 'chown', '-R', '0:0', directory], { encoding: 'utf8' });
+    if (sudo.status === 0) owned.push(directory);
+    else console.log('Note: could not hand the staged project to root (no passwordless sudo); the build agent may refuse it as owned by another user.');
+  }
   return directory;
 }
+
+// Directories handed to root, to be removed with sudo.
+const owned = [];
 
 function main() {
   const cases = loadCases(argument('case'));
@@ -108,9 +118,6 @@ function main() {
       } else {
         // The 0.1.x CLI takes the job name as its argument, not as --job.
         const args = ['local', 'execute', '--config', configPath];
-        // The job container runs as root and the project is mounted from this user: git in the
-        // checkout step refuses a repository owned by someone else unless it is marked safe.
-        args.push('--env', 'GIT_CONFIG_COUNT=1', '--env', 'GIT_CONFIG_KEY_0=safe.directory', '--env', 'GIT_CONFIG_VALUE_0=*');
         for (const [variable, value] of Object.entries(definition.context || {})) args.push('--env', `${variable}=${value}`);
         args.push(jobName(index));
         const result = circleci(args, { cwd: project });
@@ -131,7 +138,10 @@ function main() {
     console.log(`\n${cases.length} case(s), ${failed} failed.`);
   } finally {
     if (flag('keep')) console.log(`--keep: the project is in ${work}`);
-    else fs.rmSync(work, { recursive: true, force: true });
+    else {
+      for (const directory of owned) spawnSync('sudo', ['-n', 'rm', '-rf', directory]);
+      fs.rmSync(work, { recursive: true, force: true });
+    }
   }
   return failed ? 1 : 0;
 }
