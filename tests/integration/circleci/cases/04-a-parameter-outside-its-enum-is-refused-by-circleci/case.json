@@ -1,0 +1,29 @@
+{
+  "description": "A value that is not in an enum parameter's list, and a string where a boolean is declared, are refused when the config is processed, before any job runs.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "parameters": {
+    "configuration-path": "config",
+    "mode": "Apply",
+    "engine": "DscV4",
+    "skip-module-install": "true"
+  },
+  "expect": {
+    "parameterProblems": [
+      "'mode' is \"Apply\", which is not one of Test, Set, DryRun",
+      "'engine' is \"DscV4\"",
+      "'skip-module-install' must be a boolean"
+    ],
+    "liveParameterProblems": [
+      "mode",
+      "Apply",
+      "engine",
+      "DscV4",
+      "skip-module-install"
+    ]
+  }
+}

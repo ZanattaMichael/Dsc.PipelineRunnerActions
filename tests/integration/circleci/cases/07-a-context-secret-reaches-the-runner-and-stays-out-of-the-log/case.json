@@ -1,0 +1,36 @@
+{
+  "description": "A secret in the context's DSCPR_SOURCE_TOKEN (the default variable name) reaches the module as a SecureString and is never written to the log or the reports.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "context": {
+    "DSCPR_SOURCE_TOKEN": "super-secret-value-123"
+  },
+  "parameters": {
+    "configuration-repository-url": "https://example.test/platform/config.git",
+    "configuration-revision": "3f1c9a0e5b7d2148ab6c0f39e7d5412ca8b09e6f",
+    "skip-module-install": true
+  },
+  "expect": {
+    "status": "success",
+    "exitCode": 0,
+    "outputs": {
+      "DSCPR_STATUS": "Completed"
+    },
+    "call": {
+      "Source": "Git",
+      "SourceContext.Url": "https://example.test/platform/config.git",
+      "SourceContext.TokenIsSecureString": true,
+      "ConfigurationRevision": "3f1c9a0e5b7d2148ab6c0f39e7d5412ca8b09e6f"
+    },
+    "contains": [
+      "source-token\\s+\\(set, hidden\\)"
+    ],
+    "notContains": [
+      "super-secret-value-123"
+    ]
+  }
+}

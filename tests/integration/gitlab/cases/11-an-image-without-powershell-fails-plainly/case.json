@@ -1,0 +1,26 @@
+{
+  "description": "In an image without PowerShell 7 the job fails on its first line, before the step script, with the shell's own message.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "job": {
+    "variables": {
+      "PSModulePath": "{repo}/tests/fixtures/modules"
+    }
+  },
+  "hidePowerShell": true,
+  "inputs": {
+    "configuration_path": "config",
+    "skip_module_install": "true"
+  },
+  "expect": {
+    "status": "failed",
+    "notCalled": true,
+    "contains": [
+      "pwsh.*(not found|not recognized)"
+    ],
+    "notContains": [
+      "== Dsc\\.PipelineRunner"
+    ]
+  }
+}

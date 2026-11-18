@@ -1,0 +1,13 @@
+{
+  "name": "dsc-pipelinerunner-actions-tests",
+  "private": true,
+  "description": "Development dependencies of the tests in this repository. Nothing here is shipped by any integration.",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test \"azure-devops/tests/*.test.js\" \"tests/integration/**/*.test.js\""
+  },
+  "devDependencies": {
+    "yaml": "2.8.1"
+  }
+}

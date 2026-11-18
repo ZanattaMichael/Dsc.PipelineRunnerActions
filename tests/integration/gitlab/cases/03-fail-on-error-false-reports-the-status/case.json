@@ -1,0 +1,27 @@
+{
+  "description": "With fail_on_error false a Failed run does not fail the job; the status is in the dotenv report.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "job": {
+    "variables": {
+      "PSModulePath": "{repo}/tests/fixtures/modules",
+      "DSCPR_TEST_STATUS": "Failed"
+    }
+  },
+  "inputs": {
+    "configuration_path": "config",
+    "skip_module_install": "true",
+    "fail_on_error": "false"
+  },
+  "expect": {
+    "status": "success",
+    "exitCode": 0,
+    "dotenv": {
+      "DSCPR_STATUS": "Failed"
+    },
+    "contains": [
+      "WARNING: The run status is Failed. 'fail-on-error' is false, so this step does not fail"
+    ]
+  }
+}

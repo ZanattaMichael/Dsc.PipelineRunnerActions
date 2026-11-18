@@ -1,0 +1,31 @@
+{
+  "description": "source-token-variable names the context variable that holds the secret; the command copies it to where the step reads it, and it stays out of the log.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "context": {
+    "CONFIG_REPO_TOKEN": "another-secret-value-789"
+  },
+  "parameters": {
+    "configuration-repository-url": "https://example.test/platform/config.git",
+    "source-token-variable": "CONFIG_REPO_TOKEN",
+    "skip-module-install": true
+  },
+  "expect": {
+    "status": "success",
+    "exitCode": 0,
+    "call": {
+      "Source": "Git",
+      "SourceContext.TokenIsSecureString": true
+    },
+    "contains": [
+      "source-token\\s+\\(set, hidden\\)"
+    ],
+    "notContains": [
+      "another-secret-value-789"
+    ]
+  }
+}

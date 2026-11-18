@@ -1,0 +1,30 @@
+{
+  "description": "A run that ends Failed fails the job; the reports and the dotenv report are still collected (artifacts:when is always).",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "job": {
+    "variables": {
+      "PSModulePath": "{repo}/tests/fixtures/modules",
+      "DSCPR_TEST_STATUS": "Failed"
+    }
+  },
+  "inputs": {
+    "configuration_path": "config",
+    "skip_module_install": "true"
+  },
+  "expect": {
+    "status": "failed",
+    "exitCode": 1,
+    "dotenv": {
+      "DSCPR_STATUS": "Failed",
+      "DSCPR_FAIL_COUNT": "1"
+    },
+    "artifacts": [
+      "dsc-reports"
+    ],
+    "contains": [
+      "ERROR: The run status is Failed and 'fail-on-error' is true, so this step fails"
+    ]
+  }
+}

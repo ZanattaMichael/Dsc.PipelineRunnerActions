@@ -1,0 +1,25 @@
+{
+  "description": "runner_tags is an array input: it becomes the job's tags, so only a runner with those tags takes the job; the job is otherwise the same.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "job": {
+    "variables": {
+      "PSModulePath": "{repo}/tests/fixtures/modules"
+    }
+  },
+  "inputs": {
+    "configuration_path": "config",
+    "runner_tags": [
+      "dsc-pipeline-runner-tests"
+    ],
+    "skip_module_install": "true"
+  },
+  "expect": {
+    "status": "success",
+    "exitCode": 0,
+    "dotenv": {
+      "DSCPR_STATUS": "Completed"
+    }
+  }
+}

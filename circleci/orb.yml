@@ -23,7 +23,7 @@ executors:
       - image: << parameters.image >>
 
 commands:
-  run:
+  execute:
     description: >
       Run Dsc.PipelineRunner in the current job. Check out the code first when configuration-path is used.
       Secrets are read from environment variables (set them in a context); the *-variable parameters name them.
@@ -140,6 +140,8 @@ commands:
     steps:
       - run:
           name: Dsc.PipelineRunner (<< parameters.mode >>)
+          # A boolean parameter inside a string renders as 1 or 0, so the booleans are written
+          # with sections, which render the words the step expects.
           environment:
             DSCPR_PLATFORM: circleci
             DSCPR_STEP_DIRECTORY: .dsc-pipeline-runner
@@ -155,29 +157,31 @@ commands:
             DSCPR_MODE: "<< parameters.mode >>"
             DSCPR_ENGINE: "<< parameters.engine >>"
             DSCPR_ENGINE_VERSION: "<< parameters.engine-version >>"
-            DSCPR_FAIL_ON_ERROR: "<< parameters.fail-on-error >>"
+            DSCPR_FAIL_ON_ERROR: "<<# parameters.fail-on-error >>true<</ parameters.fail-on-error >><<^ parameters.fail-on-error >>false<</ parameters.fail-on-error >>"
             DSCPR_REPORT_PATH: "<< parameters.report-path >>"
             DSCPR_CONNECT: "<< parameters.connect >>"
             DSCPR_AZURE_DEVOPS_ORGANIZATION: "<< parameters.azure-devops-organization >>"
             DSCPR_AZURE_DEVOPS_AUTHENTICATION: "<< parameters.azure-devops-authentication >>"
             DSCPR_AZURE_DEVOPS_TOKEN_VARIABLE: "<< parameters.azure-devops-token-variable >>"
             DSCPR_POLICY_PATH: "<< parameters.policy-path >>"
-            DSCPR_REQUIRE_POLICY: "<< parameters.require-policy >>"
+            DSCPR_REQUIRE_POLICY: "<<# parameters.require-policy >>true<</ parameters.require-policy >><<^ parameters.require-policy >>false<</ parameters.require-policy >>"
             DSCPR_MODULE_VERSION: "<< parameters.module-version >>"
-            DSCPR_ALLOW_PRERELEASE: "<< parameters.allow-prerelease >>"
+            DSCPR_ALLOW_PRERELEASE: "<<# parameters.allow-prerelease >>true<</ parameters.allow-prerelease >><<^ parameters.allow-prerelease >>false<</ parameters.allow-prerelease >>"
             DSCPR_MODULE_REPOSITORY: "<< parameters.module-repository >>"
             DSCPR_MODULE_SOURCE: "<< parameters.module-source >>"
             DSCPR_MODULE_SOURCE_REPOSITORY: "<< parameters.module-source-repository >>"
             DSCPR_MODULE_SOURCE_REF: "<< parameters.module-source-ref >>"
             DSCPR_RESOURCE_MODULES: "<< parameters.resource-modules >>"
-            DSCPR_SKIP_MODULE_INSTALL: "<< parameters.skip-module-install >>"
-            DSCPR_KEEP_TEMPORARY_DIRECTORY: "<< parameters.keep-temporary-directory >>"
-            DSCPR_VERBOSE: "<< parameters.verbose >>"
+            DSCPR_SKIP_MODULE_INSTALL: "<<# parameters.skip-module-install >>true<</ parameters.skip-module-install >><<^ parameters.skip-module-install >>false<</ parameters.skip-module-install >>"
+            DSCPR_KEEP_TEMPORARY_DIRECTORY: "<<# parameters.keep-temporary-directory >>true<</ parameters.keep-temporary-directory >><<^ parameters.keep-temporary-directory >>false<</ parameters.keep-temporary-directory >>"
+            DSCPR_VERBOSE: "<<# parameters.verbose >>true<</ parameters.verbose >><<^ parameters.verbose >>false<</ parameters.verbose >>"
           # One command, written so that it is valid in sh, bash and PowerShell job shells alike.
           command: pwsh -NoLogo -NoProfile -NonInteractive -Command 'foreach ($pair in @(@($env:DSCPR_SOURCE_TOKEN_VARIABLE, $env:DSCPR_SOURCE_TOKEN_TARGET), @($env:DSCPR_AZURE_DEVOPS_TOKEN_VARIABLE, $env:DSCPR_AZURE_DEVOPS_TOKEN_TARGET))) { if ($pair[0] -and $pair[0] -ne $pair[1]) { [Environment]::SetEnvironmentVariable($pair[1], [Environment]::GetEnvironmentVariable($pair[0])) } }; New-Item -ItemType Directory -Force -Path $env:DSCPR_STEP_DIRECTORY | Out-Null; foreach ($file in $env:DSCPR_CORE_FILES.Split([char]44)) { Invoke-WebRequest -Uri ($env:DSCPR_CORE_URL + $file) -OutFile (Join-Path $env:DSCPR_STEP_DIRECTORY $file) }; & (Join-Path $env:DSCPR_STEP_DIRECTORY $env:DSCPR_STEP_SCRIPT); exit $LASTEXITCODE'
       - store_artifacts:
           path: << parameters.report-path >>
           destination: dsc-reports
+          # The reports matter most when the run failed, so they are stored whatever happened.
+          when: always
 
 jobs:
   run:
@@ -299,7 +303,7 @@ jobs:
     executor: << parameters.executor >>
     steps:
       - checkout
-      - run:
+      - execute:
           configuration-path: << parameters.configuration-path >>
           configuration-repository-url: << parameters.configuration-repository-url >>
           configuration-revision: << parameters.configuration-revision >>

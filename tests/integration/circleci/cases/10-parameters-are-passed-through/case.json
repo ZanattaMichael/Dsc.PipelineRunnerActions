@@ -1,0 +1,44 @@
+{
+  "description": "Every kind of parameter (enum, boolean, string, multi-line) reaches the module, and the reports are stored from the report path the config chose.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "parameters": {
+    "configuration-path": "config",
+    "mode": "DryRun",
+    "engine": "DscV3",
+    "engine-version": "3.1.0",
+    "report-path": "out/reports",
+    "keep-temporary-directory": true,
+    "verbose": true,
+    "resource-modules": "DscprTestDependency@1.0.0",
+    "skip-module-install": true
+  },
+  "expect": {
+    "status": "success",
+    "exitCode": 0,
+    "outputs": {
+      "DSCPR_STATUS": "Completed",
+      "DSCPR_REPORT_PATH": {
+        "matches": "[\\\\/]out[\\\\/]reports$"
+      }
+    },
+    "artifacts": [
+      "out/reports"
+    ],
+    "call": {
+      "Mode": "DryRun",
+      "Engine": "DscV3",
+      "EngineVersion": "3.1.0",
+      "KeepTemporaryDirectory": true,
+      "Verbose": true
+    },
+    "contains": [
+      "engine\\s+DscV3\\s+set",
+      "resource-modules\\s+DscprTestDependency@1\\.0\\.0"
+    ]
+  }
+}

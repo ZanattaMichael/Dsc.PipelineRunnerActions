@@ -1,0 +1,28 @@
+{
+  "description": "Settings the orb cannot check (an Azure DevOps connection without an organization, a module version that is not exact) are reported by the step in one pass; the job fails with exit code 2 and the module is not called.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "parameters": {
+    "configuration-path": "config",
+    "connect": "AzureDevOps",
+    "module-version": "latest",
+    "skip-module-install": true
+  },
+  "expect": {
+    "status": "failed",
+    "exitCode": 2,
+    "notCalled": true,
+    "outputs": {
+      "DSCPR_STATUS": "InvalidSettings"
+    },
+    "contains": [
+      "'connect' is AzureDevOps but 'azure-devops-organization' is empty",
+      "'module-version' is 'latest'",
+      "problem\\(s\\) must be fixed"
+    ]
+  }
+}

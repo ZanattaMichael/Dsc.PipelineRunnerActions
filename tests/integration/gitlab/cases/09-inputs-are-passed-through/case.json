@@ -1,0 +1,47 @@
+{
+  "description": "Every kind of input (options, true/false, free text, a multi-line list) reaches the module, and a report path of the pipeline's choosing is where the artifacts come from.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "job": {
+    "variables": {
+      "PSModulePath": "{repo}/tests/fixtures/modules"
+    }
+  },
+  "inputs": {
+    "job_name": "compliance",
+    "configuration_path": "config",
+    "mode": "DryRun",
+    "engine": "DscV3",
+    "engine_version": "3.1.0",
+    "report_path": "out/reports",
+    "keep_temporary_directory": "true",
+    "verbose": "true",
+    "resource_modules": "DscprTestDependency@1.0.0",
+    "skip_module_install": "true"
+  },
+  "expect": {
+    "status": "success",
+    "exitCode": 0,
+    "dotenv": {
+      "DSCPR_STATUS": "Completed",
+      "DSCPR_REPORT_PATH": {
+        "matches": "[\\\\/]out[\\\\/]reports$"
+      }
+    },
+    "artifacts": [
+      "out/reports"
+    ],
+    "call": {
+      "Mode": "DryRun",
+      "Engine": "DscV3",
+      "EngineVersion": "3.1.0",
+      "KeepTemporaryDirectory": true,
+      "Verbose": true
+    },
+    "contains": [
+      "engine\\s+DscV3\\s+set",
+      "resource-modules\\s+DscprTestDependency@1\\.0\\.0"
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "description": "With skip-module-install, a resource module that is not in the executor is named and the run is aborted.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "parameters": {
+    "configuration-path": "config",
+    "skip-module-install": true,
+    "resource-modules": "NotOnThisAgent@1.0.0"
+  },
+  "expect": {
+    "status": "failed",
+    "exitCode": 1,
+    "notCalled": true,
+    "outputs": {
+      "DSCPR_STATUS": "Aborted"
+    },
+    "contains": [
+      "Required module\\(s\\) are not installed on the agent: NotOnThisAgent"
+    ]
+  }
+}

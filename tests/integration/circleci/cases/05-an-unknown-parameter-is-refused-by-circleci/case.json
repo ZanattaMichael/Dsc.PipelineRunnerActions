@@ -1,0 +1,20 @@
+{
+  "description": "A parameter the command does not declare is refused when the config is processed.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "parameters": {
+    "configuration-pth": "config"
+  },
+  "expect": {
+    "parameterProblems": [
+      "'configuration-pth' is not a parameter of the command"
+    ],
+    "liveParameterProblems": [
+      "configuration-pth"
+    ]
+  }
+}

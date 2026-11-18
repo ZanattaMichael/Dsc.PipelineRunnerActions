@@ -1,0 +1,39 @@
+{
+  "description": "A step with only a configuration path runs with the command's defaults, writes outputs.env and stores the reports as artifacts.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "parameters": {
+    "configuration-path": "config",
+    "skip-module-install": true
+  },
+  "expect": {
+    "status": "success",
+    "exitCode": 0,
+    "outputs": {
+      "DSCPR_STATUS": "Completed",
+      "DSCPR_TOTAL_RESOURCES": "3",
+      "DSCPR_PASS_COUNT": "3",
+      "DSCPR_FAIL_COUNT": "0",
+      "DSCPR_SKIP_COUNT": "0",
+      "DSCPR_MODULE_VERSION": "9.9.9",
+      "DSCPR_REPORT_PATH": {
+        "matches": "[\\\\/]dsc-reports$"
+      }
+    },
+    "artifacts": [
+      "dsc-reports"
+    ],
+    "call": {
+      "Mode": "Test",
+      "Engine": "DscV2"
+    },
+    "contains": [
+      "== Dsc\\.PipelineRunner: settings",
+      "Platform: circleci"
+    ]
+  }
+}
