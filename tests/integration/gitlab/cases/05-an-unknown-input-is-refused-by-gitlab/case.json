@@ -1,0 +1,22 @@
+{
+  "description": "An input the component does not declare is refused when the pipeline is created.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "job": {
+    "variables": {
+      "PSModulePath": "{repo}/tests/fixtures/modules"
+    }
+  },
+  "inputs": {
+    "configuration_pth": "config"
+  },
+  "expect": {
+    "inputProblems": [
+      "'configuration_pth' is not an input of the component"
+    ],
+    "liveInputProblems": [
+      "configuration_pth"
+    ]
+  }
+}

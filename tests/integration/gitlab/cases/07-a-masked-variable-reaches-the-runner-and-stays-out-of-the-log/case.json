@@ -1,0 +1,38 @@
+{
+  "description": "A masked CI/CD variable named DSCPR_SOURCE_TOKEN reaches the module as a SecureString and is never written to the log or the reports.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "job": {
+    "variables": {
+      "PSModulePath": "{repo}/tests/fixtures/modules"
+    }
+  },
+  "maskedVariables": {
+    "DSCPR_SOURCE_TOKEN": "super-secret-value-123"
+  },
+  "inputs": {
+    "configuration_repository_url": "https://example.test/platform/config.git",
+    "configuration_revision": "3f1c9a0e5b7d2148ab6c0f39e7d5412ca8b09e6f",
+    "skip_module_install": "true"
+  },
+  "expect": {
+    "status": "success",
+    "exitCode": 0,
+    "dotenv": {
+      "DSCPR_STATUS": "Completed"
+    },
+    "call": {
+      "Source": "Git",
+      "SourceContext.Url": "https://example.test/platform/config.git",
+      "SourceContext.TokenIsSecureString": true,
+      "ConfigurationRevision": "3f1c9a0e5b7d2148ab6c0f39e7d5412ca8b09e6f"
+    },
+    "contains": [
+      "source-token\\s+\\(set, hidden\\)"
+    ],
+    "notContains": [
+      "super-secret-value-123"
+    ]
+  }
+}

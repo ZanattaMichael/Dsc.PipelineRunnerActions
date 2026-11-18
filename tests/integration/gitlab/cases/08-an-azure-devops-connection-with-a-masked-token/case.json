@@ -1,0 +1,37 @@
+{
+  "description": "The Azure DevOps connection inputs and a masked DSCPR_AZURE_DEVOPS_TOKEN reach the module; the token stays out of the log.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "job": {
+    "variables": {
+      "PSModulePath": "{repo}/tests/fixtures/modules"
+    }
+  },
+  "maskedVariables": {
+    "DSCPR_AZURE_DEVOPS_TOKEN": "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOP"
+  },
+  "inputs": {
+    "configuration_path": "config",
+    "mode": "DryRun",
+    "connect": "AzureDevOps",
+    "azure_devops_organization": "contoso",
+    "skip_module_install": "true"
+  },
+  "expect": {
+    "status": "success",
+    "exitCode": 0,
+    "call": {
+      "Mode": "DryRun",
+      "Connect": "AzureDevOps",
+      "ConnectContext.OrganizationName": "contoso",
+      "ConnectContext.AuthenticationType": "PAT"
+    },
+    "contains": [
+      "azure-devops-token\\s+\\(set, hidden\\)"
+    ],
+    "notContains": [
+      "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOP"
+    ]
+  }
+}

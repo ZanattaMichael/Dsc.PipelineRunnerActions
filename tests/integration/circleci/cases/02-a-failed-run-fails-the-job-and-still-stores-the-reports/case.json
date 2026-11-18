@@ -1,0 +1,28 @@
+{
+  "description": "A run that ends Failed fails the job; the reports are still stored, because store_artifacts runs whatever happened.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules",
+    "DSCPR_TEST_STATUS": "Failed"
+  },
+  "parameters": {
+    "configuration-path": "config",
+    "skip-module-install": true
+  },
+  "expect": {
+    "status": "failed",
+    "exitCode": 1,
+    "outputs": {
+      "DSCPR_STATUS": "Failed",
+      "DSCPR_FAIL_COUNT": "1"
+    },
+    "artifacts": [
+      "dsc-reports"
+    ],
+    "contains": [
+      "ERROR: The run status is Failed and 'fail-on-error' is true, so this step fails"
+    ]
+  }
+}

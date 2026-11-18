@@ -1,0 +1,24 @@
+{
+  "description": "In an executor image without PowerShell 7 the step fails on its first line, before the step script, with the shell's own message.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "hidePowerShell": true,
+  "parameters": {
+    "configuration-path": "config",
+    "skip-module-install": true
+  },
+  "expect": {
+    "status": "failed",
+    "notCalled": true,
+    "contains": [
+      "pwsh.*(not found|not recognized)"
+    ],
+    "notContains": [
+      "== Dsc\\.PipelineRunner"
+    ]
+  }
+}

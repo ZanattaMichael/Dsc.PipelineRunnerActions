@@ -25,8 +25,15 @@ Invoke-Pester -Path tests
 ```
 
 ```bash
-node --test azure-devops/tests/index.test.js
+npm ci
 ```
+
+```bash
+npm test
+```
+
+`package.json` holds only the development dependency of the tests (a YAML parser); no integration
+ships it.
 
 | File | What it covers |
 | --- | --- |
@@ -40,6 +47,8 @@ node --test azure-devops/tests/index.test.js
 | `azure-devops/tests/index.test.js` | The Azure DevOps task entry point: input mapping, undefined variables, a missing PowerShell, `task.json`. |
 | `tests/integration/azure-devops/` | The packaged Azure DevOps task, run the way an agent runs it, case by case; and the same cases on a real agent where an organization is configured. See its [README](../tests/integration/azure-devops/README.md). |
 | `tests/integration/jenkins/` | The Jenkins shared library in a real Jenkins controller in Docker. |
+| `tests/integration/gitlab/` | The GitLab component, included and run the way GitLab and a shell runner do it, case by case; and the same cases on a real GitLab server in Docker. See its [README](../tests/integration/gitlab/README.md). |
+| `tests/integration/circleci/` | The CircleCI orb, expanded and run the way CircleCI and its build agent do it, case by case; and the same cases through the CircleCI CLI's local execute. See its [README](../tests/integration/circleci/README.md). |
 
 None of these need the network. The step tests run against stand-in modules in `tests/fixtures/`
 that record the arguments they received; `tests/TestHelpers.ps1` holds the shared helpers.

@@ -1,0 +1,29 @@
+{
+  "description": "A value that is not one of an input's options is refused when the pipeline is created, before any job runs.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "job": {
+    "variables": {
+      "PSModulePath": "{repo}/tests/fixtures/modules"
+    }
+  },
+  "inputs": {
+    "configuration_path": "config",
+    "mode": "Apply",
+    "engine": "DscV4",
+    "skip_module_install": "true"
+  },
+  "expect": {
+    "inputProblems": [
+      "'mode' is 'Apply', which is not one of its options: Test, Set, DryRun",
+      "'engine' is 'DscV4'"
+    ],
+    "liveInputProblems": [
+      "mode",
+      "Apply",
+      "engine",
+      "DscV4"
+    ]
+  }
+}

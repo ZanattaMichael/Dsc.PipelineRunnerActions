@@ -1,0 +1,28 @@
+{
+  "description": "Settings the component cannot check (a revision without a repository URL) are reported by the step in one pass; the job fails with exit code 2 and the module is not called.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "job": {
+    "variables": {
+      "PSModulePath": "{repo}/tests/fixtures/modules"
+    }
+  },
+  "inputs": {
+    "configuration_path": "config",
+    "configuration_revision": "main",
+    "engine_version": "x",
+    "skip_module_install": "true"
+  },
+  "expect": {
+    "status": "failed",
+    "exitCode": 2,
+    "notCalled": true,
+    "dotenv": {
+      "DSCPR_STATUS": "InvalidSettings"
+    },
+    "contains": [
+      "problem\\(s\\) must be fixed"
+    ]
+  }
+}

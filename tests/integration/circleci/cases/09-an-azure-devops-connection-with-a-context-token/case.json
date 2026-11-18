@@ -1,0 +1,36 @@
+{
+  "description": "The Azure DevOps connection parameters and a token under a name of the pipeline's choosing reach the module; the token stays out of the log.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "context": {
+    "AZDO_PAT": "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOP"
+  },
+  "parameters": {
+    "configuration-path": "config",
+    "mode": "DryRun",
+    "connect": "AzureDevOps",
+    "azure-devops-organization": "contoso",
+    "azure-devops-token-variable": "AZDO_PAT",
+    "skip-module-install": true
+  },
+  "expect": {
+    "status": "success",
+    "exitCode": 0,
+    "call": {
+      "Mode": "DryRun",
+      "Connect": "AzureDevOps",
+      "ConnectContext.OrganizationName": "contoso",
+      "ConnectContext.AuthenticationType": "PAT"
+    },
+    "contains": [
+      "azure-devops-token\\s+\\(set, hidden\\)"
+    ],
+    "notContains": [
+      "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOP"
+    ]
+  }
+}

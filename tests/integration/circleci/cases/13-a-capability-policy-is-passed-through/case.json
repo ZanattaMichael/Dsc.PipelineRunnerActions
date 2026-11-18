@@ -1,0 +1,26 @@
+{
+  "description": "policy-path and require-policy reach the module.",
+  "workspace": {
+    "config": "tests/fixtures/policy-config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules"
+  },
+  "parameters": {
+    "configuration-path": "config",
+    "mode": "DryRun",
+    "policy-path": "config/Policy.yml",
+    "require-policy": true,
+    "skip-module-install": true
+  },
+  "expect": {
+    "status": "success",
+    "exitCode": 0,
+    "call": {
+      "RequirePolicy": true,
+      "PolicyPath": {
+        "matches": "Policy\\.yml$"
+      }
+    }
+  }
+}

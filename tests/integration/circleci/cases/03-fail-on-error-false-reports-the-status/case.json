@@ -1,0 +1,25 @@
+{
+  "description": "With fail-on-error false a Failed run does not fail the job; the status is in outputs.env.",
+  "workspace": {
+    "config": "tests/fixtures/config"
+  },
+  "environment": {
+    "PSModulePath": "{repo}/tests/fixtures/modules",
+    "DSCPR_TEST_STATUS": "Failed"
+  },
+  "parameters": {
+    "configuration-path": "config",
+    "skip-module-install": true,
+    "fail-on-error": false
+  },
+  "expect": {
+    "status": "success",
+    "exitCode": 0,
+    "outputs": {
+      "DSCPR_STATUS": "Failed"
+    },
+    "contains": [
+      "WARNING: The run status is Failed. 'fail-on-error' is false, so this step does not fail"
+    ]
+  }
+}

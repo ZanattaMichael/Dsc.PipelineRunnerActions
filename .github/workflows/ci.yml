@@ -276,6 +276,91 @@ jobs:
           DSCPR_AZDO_TOKEN: ${{ secrets.AZURE_DEVOPS_TEST_TOKEN }}
         run: node tests/integration/azure-devops/live/run-live.js
 
+  gitlab-component:
+    # The component is included and its job run the way GitLab and a shell runner do it, once per
+    # case, with the step script served from this working tree. See tests/integration/gitlab/README.md.
+    name: GitLab component (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Run the cases
+        run: node tests/integration/gitlab/run-cases.js
+
+  gitlab-live:
+    # The same cases on a real GitLab server: GitLab CE and a runner in Docker, the component
+    # included from a project at the commit under test. See tests/integration/gitlab/README.md.
+    name: GitLab live
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Run the cases in GitLab
+        run: node tests/integration/gitlab/live/run-live.js
+
+  circleci-orb:
+    # The orb's run command is expanded and its steps run the way CircleCI and its build agent do
+    # it, once per case. The step script is fetched from GitHub at the commit under test, so this
+    # needs that commit to be in this repository (not a fork). See tests/integration/circleci/README.md.
+    name: CircleCI orb (${{ matrix.os }})
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Run the cases
+        run: node tests/integration/circleci/run-cases.js --actions-ref ${{ github.event.pull_request.head.sha || github.sha }}
+
+  circleci-live:
+    # The same cases through the CircleCI CLI: the configuration (orb inlined) is processed by
+    # CircleCI, and each job runs in Docker with the real build agent (local execute).
+    name: CircleCI local execute
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Install the CircleCI CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/main/install.sh | DESTDIR="$HOME/bin" bash
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+          "$HOME/bin/circleci" version
+      - name: Run the cases with local execute
+        env:
+          # Only needed if CircleCI insists on a token to process the configuration.
+          CIRCLE_TOKEN: ${{ secrets.CIRCLECI_TOKEN }}
+          CIRCLECI_CLI_TOKEN: ${{ secrets.CIRCLECI_TOKEN }}
+          CIRCLECI_CLI_TELEMETRY_OPTOUT: '1'
+        run: |
+          set +e
+          node tests/integration/circleci/live/run-local-execute.js --actions-ref ${{ github.event.pull_request.head.sha || github.sha }}
+          code=$?
+          if [ "$code" = "3" ]; then echo "::notice::CircleCI local execute needs a token to process the configuration and the secret CIRCLECI_TOKEN is not set; the cases were not run."; exit 0; fi
+          exit $code
+
   jenkins-integration:
     # A real Jenkins controller in Docker loads the shared library and runs pipelines that call
     # the step. See tests/integration/jenkins/Invoke-JenkinsIntegrationTests.ps1.
@@ -299,7 +384,7 @@ jobs:
           for path in ['action.yml', 'circleci/orb.yml', 'templates/dsc-pipeline-runner.yml', '.gitlab-ci.yml'] + glob.glob('examples/**/*.yml', recursive=True) + glob.glob('.github/workflows/*.yml'):
               list(yaml.safe_load_all(open(path)))
               print('ok', path)
-          for path in ['core/settings.json', 'azure-devops/vss-extension.json', 'azure-devops/DscPipelineRunnerTask/task.json'] + glob.glob('tests/integration/azure-devops/cases/*/case.json'):
+          for path in ['core/settings.json', 'azure-devops/vss-extension.json', 'azure-devops/DscPipelineRunnerTask/task.json'] + glob.glob('tests/integration/*/cases/*/case.json'):
               json.load(open(path))
               print('ok', path)
           PY
